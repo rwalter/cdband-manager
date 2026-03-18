@@ -177,18 +177,26 @@ function UserSelect({ onSelect }) {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 340 }}>
         {BAND_MEMBERS.map(m => (
-          <Card
+          <div
             key={m.id}
-            style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", cursor: "pointer" }}
+            onClick={() => onSelect(m)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onSelect(m); }}
+            style={{
+              background: "var(--color-background-primary)",
+              border: "0.5px solid var(--color-border-tertiary)",
+              borderRadius: 12, padding: "14px 18px", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 14,
+              WebkitTapHighlightColor: "transparent",
+            }}
           >
-            <div onClick={() => onSelect(m)} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%" }}>
-              <Avatar member={m} size={40} />
-              <div>
-                <div style={{ fontWeight: 500, fontSize: 15, color: "var(--color-text-primary)" }}>{m.name}</div>
-                <div style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>{m.role}</div>
-              </div>
+            <Avatar member={m} size={40} />
+            <div>
+              <div style={{ fontWeight: 500, fontSize: 15, color: "var(--color-text-primary)" }}>{m.name}</div>
+              <div style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>{m.role}</div>
             </div>
-          </Card>
+          </div>
         ))}
       </div>
     </div>
@@ -228,7 +236,7 @@ export default function App() {
     }
   };
   return (
-    <div style={{ margin: "0 auto", fontFamily: "var(--font-sans)", paddingBottom: 80 }}>
+    <div style={{ margin: "0 auto", fontFamily: "var(--font-sans)", paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}>
       <div style={{
         padding: "18px 20px 14px",
         borderBottom: "0.5px solid var(--color-border-tertiary)",
@@ -241,14 +249,22 @@ export default function App() {
           </div>
           <div style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>Band HQ</div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div
+          onClick={handleLogout}
+          role="button"
+          tabIndex={0}
+          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") handleLogout(); }}
+          style={{
+            display: "flex", alignItems: "center", gap: 10,
+            cursor: "pointer", padding: "6px 10px", borderRadius: 8,
+            WebkitTapHighlightColor: "transparent",
+            minHeight: 44,
+          }}
+        >
           <Avatar member={currentUser} size={28} />
           <div>
             <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-primary)" }}>{currentUser.name}</div>
-            <div
-              onClick={handleLogout}
-              style={{ fontSize: 10, color: "var(--color-text-secondary)", cursor: "pointer" }}
-            >Switch user</div>
+            <div style={{ fontSize: 10, color: "var(--color-text-secondary)" }}>Switch user</div>
           </div>
         </div>
       </div>
@@ -256,11 +272,11 @@ export default function App() {
         {renderView()}
       </div>
       <div style={{
-        position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
-        width: "100%",
+        position: "fixed", bottom: 0, left: 0, right: 0,
         background: "var(--color-background-primary)",
         borderTop: "0.5px solid var(--color-border-tertiary)",
         display: "flex",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}>
         {NAV.map(n => (
           <button
@@ -270,9 +286,11 @@ export default function App() {
               flex: 1, padding: "10px 4px 12px", background: "none", border: "none",
               cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
               borderTop: view === n.id ? "2px solid var(--color-text-primary)" : "2px solid transparent",
+              minHeight: 48,
+              WebkitTapHighlightColor: "transparent",
             }}
           >
-            <span style={{ fontSize: 16, color: view === n.id ? "var(--color-text-primary)" : "var(--color-text-secondary)" }}>{n.icon}</span>
+            <span style={{ fontSize: 18, color: view === n.id ? "var(--color-text-primary)" : "var(--color-text-secondary)" }}>{n.icon}</span>
             <span style={{ fontSize: 10, color: view === n.id ? "var(--color-text-primary)" : "var(--color-text-secondary)", fontWeight: view === n.id ? 500 : 400 }}>{n.label}</span>
           </button>
         ))}

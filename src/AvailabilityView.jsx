@@ -341,7 +341,7 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
           {new Date(date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
         </div>
         {/* Member availability indicators — only current user is clickable */}
-        <div style={{ display: "flex", gap: 3, marginTop: 7, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 1, marginTop: 7, flexWrap: "wrap" }}>
           {BAND_MEMBERS.map(m => {
             const isMe = m.id === currentUser.id;
             const dayStatus = getMemberDayStatus(memberAvailability, date, m.id);
@@ -349,10 +349,15 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
               <div
                 key={m.id}
                 title={isMe
-                  ? `${m.name} (you) — ${dayStatus} — click to change`
+                  ? `${m.name} (you) — ${dayStatus} — tap to change`
                   : `${m.name} — ${dayStatus}`}
                 onClick={isMe ? () => onToggleDayStatus(date) : undefined}
-                style={{ cursor: isMe ? "pointer" : "default" }}
+                style={{
+                  cursor: isMe ? "pointer" : "default",
+                  padding: isMe ? 3 : 1,
+                  borderRadius: "50%",
+                  WebkitTapHighlightColor: "transparent",
+                }}
               >
                 <Avatar member={m} size={20} status={dayStatus} />
               </div>
@@ -406,8 +411,8 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
           return (
             <div
               key={hour}
-              onMouseEnter={() => slot && setHoveredHour(hour)}
-              onMouseLeave={() => setHoveredHour(null)}
+              onPointerEnter={(e) => { if (e.pointerType === "mouse" && slot) setHoveredHour(hour); }}
+              onPointerLeave={() => setHoveredHour(null)}
               style={{
                 height: 44,
                 borderBottom: "0.5px solid var(--color-border-tertiary)",
@@ -424,16 +429,22 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
                 position: "relative",
               }}
             >
-              {/* My availability toggle dot */}
+              {/* My availability toggle dot — oversized tap target */}
               <div
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleSlot(date, hour);
                 }}
-                title={`Your status: ${mySlotStatus} — click to change`}
+                title={`Your status: ${mySlotStatus} — tap to change`}
                 style={{
-                  width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
-                  marginRight: 4, cursor: "pointer",
+                  width: 32, height: 32, flexShrink: 0,
+                  marginRight: 2, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                <div style={{
+                  width: 16, height: 16, borderRadius: "50%",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   background: mySlotStatus === "available" ? currentUser.color + "22"
                     : mySlotStatus === "maybe" ? MAYBE_COLOR + "22"
@@ -442,14 +453,15 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
                     : mySlotStatus === "maybe" ? `1.5px dashed ${MAYBE_COLOR}`
                     : "1.5px solid var(--color-border-tertiary)",
                   transition: "all 0.15s",
-                }}
-              >
-                {mySlotStatus === "available" && (
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: currentUser.color }} />
-                )}
-                {mySlotStatus === "maybe" && (
-                  <span style={{ fontSize: 9, color: MAYBE_COLOR, fontWeight: 700 }}>?</span>
-                )}
+                  pointerEvents: "none",
+                }}>
+                  {mySlotStatus === "available" && (
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: currentUser.color }} />
+                  )}
+                  {mySlotStatus === "maybe" && (
+                    <span style={{ fontSize: 9, color: MAYBE_COLOR, fontWeight: 700 }}>?</span>
+                  )}
+                </div>
               </div>
               {loading ? (
                 <div style={{
@@ -521,9 +533,11 @@ function SlotDetail({ detail, memberAvailability, onClose, onWhatsApp, duration 
         style={{
           background: "var(--color-background-primary)",
           borderRadius: "16px 16px 0 0",
-          padding: "20px 20px 32px",
+          padding: "20px 20px calc(32px + env(safe-area-inset-bottom, 0px))",
           width: "100%", maxWidth: 480,
           borderTop: "0.5px solid var(--color-border-tertiary)",
+          maxHeight: "80vh", overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
         }}
       >
         <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-secondary)", margin: "0 auto 16px" }} />
@@ -860,17 +874,17 @@ export default function AvailabilityView({ currentUser }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%", position: "relative" }}>
       {/* Header bar */}
       <div style={{
-        padding: "12px 16px 10px",
+        padding: "12px 12px 10px",
         borderBottom: "0.5px solid var(--color-border-tertiary)",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        flexShrink: 0,
+        display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+        flexShrink: 0, gap: 8, flexWrap: "wrap",
       }}>
-        <div>
+        <div style={{ minWidth: 0, flex: "1 1 auto" }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-primary)" }}>
             Pirate Studios Camden
           </div>
           <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 1 }}>
-            Rehearsal Pro · {duration}hrs · Studios 16, 13, 22, 32, 21, 17
+            Rehearsal Pro · {duration}hrs
           </div>
           {lastRefreshed && !anyLoading && (
             <div style={{ fontSize: 10, color: "var(--color-text-secondary)", marginTop: 2, opacity: 0.7 }}>
@@ -878,7 +892,7 @@ export default function AvailabilityView({ currentUser }) {
             </div>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
           {anyLoading && (
             <div style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>loading…</div>
           )}
@@ -887,31 +901,34 @@ export default function AvailabilityView({ currentUser }) {
             disabled={anyLoading || dates.length === 0}
             title="Refresh availability from Pirate Studios"
             style={{
-              fontSize: 12, padding: "5px 8px", borderRadius: 8, cursor: "pointer",
+              fontSize: 12, padding: "8px 10px", borderRadius: 8, cursor: "pointer",
               background: "var(--color-background-secondary)",
               border: "0.5px solid var(--color-border-tertiary)",
               color: "var(--color-text-primary)",
               opacity: (anyLoading || dates.length === 0) ? 0.5 : 1,
+              minHeight: 36, WebkitTapHighlightColor: "transparent",
             }}
           >↻</button>
           <button
             onClick={handleLoad1Day}
             disabled={anyLoading}
             style={{
-              fontSize: 12, padding: "5px 10px", borderRadius: 8, cursor: "pointer",
+              fontSize: 12, padding: "8px 12px", borderRadius: 8, cursor: "pointer",
               background: "var(--color-background-secondary)",
               border: "0.5px solid var(--color-border-tertiary)",
               color: "var(--color-text-primary)", opacity: anyLoading ? 0.5 : 1,
+              minHeight: 36, WebkitTapHighlightColor: "transparent",
             }}
           >+1 day</button>
           <button
             onClick={handleLoad7Days}
             disabled={anyLoading}
             style={{
-              fontSize: 12, padding: "5px 10px", borderRadius: 8, cursor: "pointer",
+              fontSize: 12, padding: "8px 12px", borderRadius: 8, cursor: "pointer",
               background: "var(--color-background-secondary)",
               border: "0.5px solid var(--color-border-tertiary)",
               color: "var(--color-text-primary)", opacity: anyLoading ? 0.5 : 1,
+              minHeight: 36, WebkitTapHighlightColor: "transparent",
             }}
           >+7 days</button>
         </div>
@@ -947,6 +964,7 @@ export default function AvailabilityView({ currentUser }) {
             overflowY: "auto",
             display: "flex",
             WebkitOverflowScrolling: "touch",
+            touchAction: "pan-x pan-y",
           }}
         >
           {dates.length === 0 ? (
@@ -977,56 +995,58 @@ export default function AvailabilityView({ currentUser }) {
           )}
         </div>
       </div>
-      {/* Extended hours toggle */}
+      {/* Controls */}
       <div style={{
-        padding: "8px 16px",
+        padding: "8px 12px",
         borderTop: "0.5px solid var(--color-border-tertiary)",
         flexShrink: 0,
+        display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center",
       }}>
         <label style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           fontSize: 12, color: "var(--color-text-secondary)", cursor: "pointer",
+          minHeight: 32, WebkitTapHighlightColor: "transparent",
         }}>
           <input
             type="checkbox"
             checked={showExtended}
             onChange={e => setShowExtended(e.target.checked)}
-            style={{ margin: 0 }}
+            style={{ margin: 0, width: 18, height: 18 }}
           />
-          Show 8am–8pm
+          8am–8pm
         </label>
         <label style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           fontSize: 12, color: "var(--color-text-secondary)", cursor: "pointer",
-          marginLeft: 16,
+          minHeight: 32, WebkitTapHighlightColor: "transparent",
         }}>
           <input
             type="checkbox"
             checked={allowStudioSwitch}
             onChange={e => setAllowStudioSwitch(e.target.checked)}
-            style={{ margin: 0 }}
+            style={{ margin: 0, width: 18, height: 18 }}
           />
-          Allow moving between studios
+          Switch studios
         </label>
         <label style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           fontSize: 12, color: "var(--color-text-secondary)",
-          marginLeft: 16,
+          minHeight: 32,
         }}>
-          Slot duration
+          Duration
           <select
             value={duration}
             onChange={e => setDuration(Number(e.target.value))}
             style={{
-              fontSize: 12, padding: "2px 4px", borderRadius: 4,
+              fontSize: 12, padding: "4px 6px", borderRadius: 4,
               border: "0.5px solid var(--color-border-tertiary)",
               background: "var(--color-background-secondary)",
               color: "var(--color-text-primary)",
-              cursor: "pointer",
+              cursor: "pointer", minHeight: 28,
             }}
           >
-            <option value={3}>3 hours</option>
-            <option value={4}>4 hours</option>
+            <option value={3}>3 hrs</option>
+            <option value={4}>4 hrs</option>
           </select>
         </label>
       </div>
@@ -1066,8 +1086,10 @@ export default function AvailabilityView({ currentUser }) {
             style={{
               background: "var(--color-background-primary)",
               borderRadius: "16px 16px 0 0",
-              padding: "20px 20px 32px",
+              padding: "20px 20px calc(32px + env(safe-area-inset-bottom, 0px))",
               width: "100%", maxWidth: 480,
+              maxHeight: "80vh", overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-secondary)", margin: "0 auto 16px" }} />

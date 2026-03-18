@@ -68,6 +68,13 @@
 
 body {
   margin: 0;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Prevent double-tap zoom on interactive elements */
+button, a, [role="button"], label, select, input {
+  touch-action: manipulation;
 }
 
 #root {
