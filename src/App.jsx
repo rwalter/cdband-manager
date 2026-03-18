@@ -164,7 +164,7 @@ const NAV = [
   { id: "rehearsals",  label: "Rehearsals",   icon: "♪" },
 ];
 export default function App() {
-  const [view, setView] = useState("home");
+  const [view, setView] = useState("availability");
   const [rehearsals] = useState(INITIAL_REHEARSALS);
   const renderView = () => {
     switch (view) {
