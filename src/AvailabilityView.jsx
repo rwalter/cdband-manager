@@ -126,8 +126,21 @@ const StudioBadge = ({ num, label }) => {
 };
 // ─── DAY COLUMN ──────────────────────────────────────────────────────────────
 function DayColumn({ date, availability, loading, memberAvailability, myId, onToggleMember, onSlotClick }) {
+  const [hoveredHour, setHoveredHour] = useState(null);
   const weekend = isWeekend(date);
   const isToday = date === todayStr();
+  // Check if DURATION consecutive hours starting at h all have availability
+  const hasConsecutive = (h) => {
+    for (let i = 0; i < DURATION; i++) {
+      if (!availability?.[h + i]) return false;
+    }
+    return true;
+  };
+  // Which hours should be highlighted by the hover
+  const hoverSet = new Set();
+  if (hoveredHour !== null && hasConsecutive(hoveredHour)) {
+    for (let i = 0; i < DURATION; i++) hoverSet.add(hoveredHour + i);
+  }
   return (
     <div style={{
       minWidth: 120, flex: 1, flexShrink: 0,
@@ -187,13 +200,17 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
           return (
             <div
               key={hour}
-              onClick={() => slot && onSlotClick({ date, hour, slot, membersFree })}
+              onClick={() => slot && hasConsecutive(hour) && onSlotClick({ date, hour, slot, membersFree })}
+              onMouseEnter={() => slot && setHoveredHour(hour)}
+              onMouseLeave={() => setHoveredHour(null)}
               style={{
                 height: 44,
                 borderBottom: "0.5px solid var(--color-border-tertiary)",
                 padding: "4px 6px",
-                cursor: slot ? "pointer" : "default",
-                background: highlight
+                cursor: slot && hasConsecutive(hour) ? "pointer" : "default",
+                background: hoverSet.has(hour)
+                  ? (STUDIO_COLORS[availability[hour]?.best?.studioNum] || "#888") + "22"
+                  : highlight
                   ? STUDIO_COLORS[slot.best.studioNum] + "12"
                   : "transparent",
                 transition: "background 0.15s",
@@ -219,11 +236,6 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
                     }}>
                       S{slot.best.studioNum}
                     </span>
-                    {slot.all.length > 1 && (
-                      <span style={{ fontSize: 9, color: "var(--color-text-secondary)" }}>
-                        +{slot.all.length - 1}
-                      </span>
-                    )}
                   </div>
                   <div style={{ fontSize: 9, color: "var(--color-text-secondary)" }}>
                     £{slot.best.price}
@@ -334,7 +346,7 @@ function SlotDetail({ detail, onClose, onWhatsApp }) {
               textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center",
             }}
           >
-            Book on Pirate ↗
+            Book Studio {slot.best.studioNum} ↗
           </a>
         </div>
       </div>
