@@ -50,6 +50,39 @@ const studioNum = (name) => name?.replace("Studio ", "").trim();
 const preferenceOf = (name) =>
   STUDIO_PREFERENCE.find((s) => s.number === studioNum(name));
 
+// ─── CACHE HELPERS ──────────────────────────────────────────────────────────
+const PIRATE_CACHE_KEY = "cdband-pirateAvailability";
+
+function loadPirateCache() {
+  try {
+    const raw = localStorage.getItem(PIRATE_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function savePirateCache(data, duration, lastRefreshed) {
+  try {
+    localStorage.setItem(PIRATE_CACHE_KEY, JSON.stringify({ data, duration, lastRefreshed }));
+  } catch { /* quota exceeded — ignore */ }
+}
+
+function clearPirateCache() {
+  localStorage.removeItem(PIRATE_CACHE_KEY);
+}
+
+function timeAgo(isoStr) {
+  if (!isoStr) return null;
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 // ─── AVAILABILITY HELPERS ────────────────────────────────────────────────────
 // memberAvailability shape:
 // { "2026-04-05": { 1: { dayStatus: "available"|"maybe"|"unavailable", dayReason: "", slots: { 9: { status, reason } } } } }
@@ -565,8 +598,22 @@ function SlotDetail({ detail, memberAvailability, onClose, onWhatsApp, duration 
 }
 // ─── MAIN VIEW ───────────────────────────────────────────────────────────────
 export default function AvailabilityView({ currentUser }) {
-  const [dates, setDates] = useState([]);
-  const [availability, setAvailability] = useState({});   // { dateStr: { hour: slotOrNull } }
+  // Seed availability from localStorage cache
+  const cachedPirate = loadPirateCache();
+  const cachedData = (cachedPirate && cachedPirate.duration === DEFAULT_DURATION)
+    ? (() => {
+        const today = todayStr();
+        const filtered = {};
+        for (const [d, v] of Object.entries(cachedPirate.data)) {
+          if (d >= today) filtered[d] = v;
+        }
+        return filtered;
+      })()
+    : {};
+  const cachedDates = Object.keys(cachedData).sort();
+
+  const [dates, setDates] = useState(cachedDates);
+  const [availability, setAvailability] = useState(cachedData);   // { dateStr: { hour: slotOrNull } }
   const [loading, setLoading] = useState({});              // { dateStr: bool }
   const [memberAvailability, setMemberAvailability] = useState(() => {
     try {
@@ -581,6 +628,10 @@ export default function AvailabilityView({ currentUser }) {
   const [allowStudioSwitch, setAllowStudioSwitch] = useState(false);
   const [duration, setDuration] = useState(DEFAULT_DURATION);
   const [maybePrompt, setMaybePrompt] = useState(null);
+  const [lastRefreshed, setLastRefreshed] = useState(
+    cachedPirate?.duration === DEFAULT_DURATION ? cachedPirate.lastRefreshed : null
+  );
+  const [, setTick] = useState(0); // force re-render to update timeAgo display
   const visibleHours = showExtended ? ALL_HOURS : DEFAULT_HOURS;
   const scrollRef = useRef(null);
 
@@ -589,10 +640,23 @@ export default function AvailabilityView({ currentUser }) {
     localStorage.setItem("cdband-memberAvailability", JSON.stringify(memberAvailability));
   }, [memberAvailability]);
 
+  // Tick every 30s to keep "Updated X ago" label fresh
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const loadDates = useCallback(async (newDates) => {
     // Add only dates not already loaded
     const toLoad = newDates.filter(d => !(d in availability));
-    if (toLoad.length === 0) return;
+    if (toLoad.length === 0) {
+      // Still add the dates to the visible list even if already cached
+      setDates(prev => {
+        const all = [...new Set([...prev, ...newDates])].sort();
+        return all;
+      });
+      return;
+    }
     setDates(prev => {
       const all = [...new Set([...prev, ...newDates])].sort();
       return all;
@@ -602,11 +666,20 @@ export default function AvailabilityView({ currentUser }) {
     toLoad.forEach(d => { loadingPatch[d] = true; });
     setLoading(prev => ({ ...prev, ...loadingPatch }));
     // Fetch in parallel (with small stagger to be polite)
+    let anySuccess = false;
     await Promise.all(toLoad.map(async (date, i) => {
       await new Promise(r => setTimeout(r, i * 120));
       try {
         const result = await fetchPirateAvailability(date, duration);
-        setAvailability(prev => ({ ...prev, [date]: result }));
+        setAvailability(prev => {
+          const updated = { ...prev, [date]: result };
+          // Persist to localStorage cache
+          const now = new Date().toISOString();
+          savePirateCache(updated, duration, now);
+          setLastRefreshed(now);
+          return updated;
+        });
+        anySuccess = true;
         setError(null);
       } catch (e) {
         setError("Couldn't reach Pirate API — try again in a moment.");
@@ -793,13 +866,26 @@ export default function AvailabilityView({ currentUser }) {
     setWhatsappMsg({ text: msg, url });
     setSelectedSlot(null);
   };
+  // Refresh: clear cache and re-fetch all loaded dates
+  const handleRefresh = () => {
+    if (dates.length === 0) return;
+    clearPirateCache();
+    setAvailability({});
+    setLastRefreshed(null);
+    setSelectedSlot(null);
+    const toRefetch = [...dates];
+    setTimeout(() => loadDates(toRefetch), 0);
+  };
+
   // Re-fetch all loaded dates when duration changes
   const prevDurationRef = useRef(duration);
   useEffect(() => {
     if (prevDurationRef.current !== duration) {
       prevDurationRef.current = duration;
       if (dates.length > 0) {
+        clearPirateCache();
         setAvailability({});
+        setLastRefreshed(null);
         setSelectedSlot(null);
         // loadDates will re-fetch since availability was cleared
         const toRefetch = [...dates];
@@ -836,11 +922,28 @@ export default function AvailabilityView({ currentUser }) {
           <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 1 }}>
             Rehearsal Pro · {duration}hrs · Studios 16, 13, 22, 32, 21, 17
           </div>
+          {lastRefreshed && !anyLoading && (
+            <div style={{ fontSize: 10, color: "var(--color-text-secondary)", marginTop: 2, opacity: 0.7 }}>
+              Updated {timeAgo(lastRefreshed)}
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {anyLoading && (
             <div style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>loading…</div>
           )}
+          <button
+            onClick={handleRefresh}
+            disabled={anyLoading || dates.length === 0}
+            title="Refresh availability from Pirate Studios"
+            style={{
+              fontSize: 12, padding: "5px 8px", borderRadius: 8, cursor: "pointer",
+              background: "var(--color-background-secondary)",
+              border: "0.5px solid var(--color-border-tertiary)",
+              color: "var(--color-text-primary)",
+              opacity: (anyLoading || dates.length === 0) ? 0.5 : 1,
+            }}
+          >↻</button>
           <button
             onClick={handleLoad1Day}
             disabled={anyLoading}
