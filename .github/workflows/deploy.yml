@@ -1,20 +1,14 @@
 name: Deploy to GitHub Pages
-
 on:
   push:
-    branches: [claude/integrate-availability-view-wWA1W]
-
+    branches: ['**']  # trigger on all branches
 permissions:
-  contents: read
+  contents: write     # needs write to commit the subfolder
   pages: write
   id-token: write
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,8 +17,18 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+
+      - name: Sanitise branch name
+        id: branch
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          SAFE="${BRANCH//\//-}"   # replace / with -
+          echo "name=$SAFE" >> $GITHUB_OUTPUT
+
+      - name: Deploy to subfolder
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: dist
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          destination_dir: ${{ steps.branch.name }}
+          keep_files: true   # don't wipe other branches' folders
