@@ -134,14 +134,24 @@ const StudioBadge = ({ num, label }) => {
   );
 };
 // ─── DAY COLUMN ──────────────────────────────────────────────────────────────
-function DayColumn({ date, availability, loading, memberAvailability, myId, onToggleMember, onSlotClick, visibleHours }) {
+function DayColumn({ date, availability, loading, memberAvailability, myId, onToggleMember, onSlotClick, visibleHours, allowStudioSwitch }) {
   const [hoveredHour, setHoveredHour] = useState(null);
   const weekend = isWeekend(date);
   const isToday = date === todayStr();
-  // Check if DURATION consecutive hours starting at h all have availability
+  // Check if DURATION consecutive hours starting at h all have availability.
+  // When allowStudioSwitch is false, require the same studio across all hours.
   const hasConsecutive = (h) => {
     for (let i = 0; i < DURATION; i++) {
       if (!availability?.[h + i]) return false;
+    }
+    if (!allowStudioSwitch) {
+      // Find a studio that's available in all DURATION hours
+      const firstAll = availability[h]?.all || [];
+      return firstAll.some(s =>
+        Array.from({ length: DURATION }, (_, i) => h + i).every(hr =>
+          availability[hr]?.all?.some(a => a.studioNum === s.studioNum)
+        )
+      );
     }
     return true;
   };
@@ -370,6 +380,7 @@ export default function AvailabilityView() {
   const [whatsappMsg, setWhatsappMsg] = useState(null);
   const [error, setError] = useState(null);
   const [showExtended, setShowExtended] = useState(false);
+  const [allowStudioSwitch, setAllowStudioSwitch] = useState(false);
   const visibleHours = showExtended ? ALL_HOURS : DEFAULT_HOURS;
   const scrollRef = useRef(null);
   const loadDates = useCallback(async (newDates) => {
@@ -542,6 +553,7 @@ export default function AvailabilityView() {
                 onToggleMember={handleToggleMember}
                 onSlotClick={setSelectedSlot}
                 visibleHours={visibleHours}
+                allowStudioSwitch={allowStudioSwitch}
               />
             ))
           )}
@@ -564,6 +576,19 @@ export default function AvailabilityView() {
             style={{ margin: 0 }}
           />
           Show 8am–8pm
+        </label>
+        <label style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          fontSize: 12, color: "var(--color-text-secondary)", cursor: "pointer",
+          marginLeft: 16,
+        }}>
+          <input
+            type="checkbox"
+            checked={allowStudioSwitch}
+            onChange={e => setAllowStudioSwitch(e.target.checked)}
+            style={{ margin: 0 }}
+          />
+          Allow moving between studios
         </label>
       </div>
       {/* Error banner */}
