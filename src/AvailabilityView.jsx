@@ -487,8 +487,8 @@ export default function AvailabilityView() {
             <div key={h} style={{
               height: 44,
               borderBottom: "0.5px solid var(--color-border-tertiary)",
-              display: "flex", alignItems: "center", justifyContent: "flex-end",
-              paddingRight: 8,
+              display: "flex", alignItems: "center", justifyContent: "flex-end",              
+              padding: "4px 6px",
               fontSize: 10,
               color: "var(--color-text-secondary)",
             }}>
