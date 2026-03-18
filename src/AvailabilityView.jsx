@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 const DECK_SLUG = "london-camden";
-const DURATION = 3;
+const DEFAULT_DURATION = 3;
 // Preferred studios in order — Pro only
 const STUDIO_PREFERENCE = [
   { number: "16", label: "Studio 16", rank: 1 },
@@ -48,7 +48,7 @@ const studioNum = (name) => name?.replace("Studio ", "").trim();
 const preferenceOf = (name) =>
   STUDIO_PREFERENCE.find((s) => s.number === studioNum(name));
 // ─── API ─────────────────────────────────────────────────────────────────────
-async function fetchPirateAvailability(date) {
+async function fetchPirateAvailability(date, duration) {
   // Don't fetch past dates — return empty
   if (date < todayStr()) {
     const hourMap = {};
@@ -56,7 +56,7 @@ async function fetchPirateAvailability(date) {
     return hourMap;
   }
   const startTime = `${date}T08:00:00.000`;
-  const url = `https://api.pirate.com/v1/search?deck_slug=${DECK_SLUG}&duration=${DURATION}&start_time=${encodeURIComponent(startTime)}`;
+  const url = `https://api.pirate.com/v1/search?deck_slug=${DECK_SLUG}&duration=${duration}&start_time=${encodeURIComponent(startTime)}`;
   const res = await fetch(url, {
     headers: { "Accept-Language": "en", "Accept": "application/json" },
   });
@@ -134,30 +134,30 @@ const StudioBadge = ({ num, label }) => {
   );
 };
 // ─── DAY COLUMN ──────────────────────────────────────────────────────────────
-function DayColumn({ date, availability, loading, memberAvailability, myId, onToggleMember, onSlotClick, visibleHours, allowStudioSwitch }) {
+function DayColumn({ date, availability, loading, memberAvailability, myId, onToggleMember, onSlotClick, visibleHours, allowStudioSwitch, duration }) {
   const [hoveredHour, setHoveredHour] = useState(null);
   const weekend = isWeekend(date);
   const isToday = date === todayStr();
-  // Check if DURATION consecutive hours starting at h all have availability.
+  // Check if duration consecutive hours starting at h all have availability.
   // When allowStudioSwitch is false, require the same studio across all hours.
   const hasConsecutive = (h) => {
-    for (let i = 0; i < DURATION; i++) {
+    for (let i = 0; i < duration; i++) {
       if (!availability?.[h + i]) return false;
     }
     if (!allowStudioSwitch) {
-      // Find a studio that's available in all DURATION hours
+      // Find a studio that's available in all duration hours
       const firstAll = availability[h]?.all || [];
       return firstAll.some(s =>
-        Array.from({ length: DURATION }, (_, i) => h + i).every(hr =>
+        Array.from({ length: duration }, (_, i) => h + i).every(hr =>
           availability[hr]?.all?.some(a => a.studioNum === s.studioNum)
         )
       );
     }
     return true;
   };
-  // Find the best studio available across all DURATION hours from h
+  // Find the best studio available across all duration hours from h
   const bestCommonStudio = (h) => {
-    const hours = Array.from({ length: DURATION }, (_, i) => h + i);
+    const hours = Array.from({ length: duration }, (_, i) => h + i);
     if (hours.some(hr => !availability?.[hr])) return null;
     const firstAll = availability[h]?.all || [];
     const common = firstAll.filter(s =>
@@ -171,7 +171,7 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
   const hoverStudio = hoveredHour !== null && hasConsecutive(hoveredHour)
     ? bestCommonStudio(hoveredHour) : null;
   if (hoverStudio) {
-    for (let i = 0; i < DURATION; i++) hoverSet.add(hoveredHour + i);
+    for (let i = 0; i < duration; i++) hoverSet.add(hoveredHour + i);
   }
   return (
     <div style={{
@@ -305,11 +305,11 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
   );
 }
 // ─── SLOT DETAIL MODAL ───────────────────────────────────────────────────────
-function SlotDetail({ detail, onClose, onWhatsApp }) {
+function SlotDetail({ detail, onClose, onWhatsApp, duration }) {
   if (!detail) return null;
   const { date, hour, slot, membersFree } = detail;
   const membersMissing = BAND_MEMBERS.filter(m => !membersFree.find(f => f.id === m.id));
-  const timeStr = `${String(hour).padStart(2, "0")}:00–${String(hour + DURATION).padStart(2, "0")}:00`;
+  const timeStr = `${String(hour).padStart(2, "0")}:00–${String(hour + duration).padStart(2, "0")}:00`;
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 50,
@@ -328,7 +328,7 @@ function SlotDetail({ detail, onClose, onWhatsApp }) {
       >
         <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-secondary)", margin: "0 auto 16px" }} />
         <div style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: 4 }}>
-          {formatDate(date)} · {timeStr} · {DURATION}hrs
+          {formatDate(date)} · {timeStr} · {duration}hrs
         </div>
         <div style={{ fontSize: 18, fontWeight: 500, color: "var(--color-text-primary)", marginBottom: 16 }}>
           Best available: Studio {slot.best.studioNum}
@@ -375,7 +375,7 @@ function SlotDetail({ detail, onClose, onWhatsApp }) {
             Share on WhatsApp ↗
           </button>
           <a
-            href={`https://book.pirate.com/booking/${DECK_SLUG}/${slot.best.studioId}/${slot.best.slotTime}?duration=${DURATION}&studio_super_type=1&total_guests=0`}
+            href={`https://book.pirate.com/booking/${DECK_SLUG}/${slot.best.studioId}/${slot.best.slotTime}?duration=${duration}&studio_super_type=1&total_guests=0`}
             target="_blank"
             rel="noopener noreferrer"
             style={{
@@ -404,6 +404,7 @@ export default function AvailabilityView() {
   const [error, setError] = useState(null);
   const [showExtended, setShowExtended] = useState(false);
   const [allowStudioSwitch, setAllowStudioSwitch] = useState(false);
+  const [duration, setDuration] = useState(DEFAULT_DURATION);
   const visibleHours = showExtended ? ALL_HOURS : DEFAULT_HOURS;
   const scrollRef = useRef(null);
   const loadDates = useCallback(async (newDates) => {
@@ -422,7 +423,7 @@ export default function AvailabilityView() {
     await Promise.all(toLoad.map(async (date, i) => {
       await new Promise(r => setTimeout(r, i * 120));
       try {
-        const result = await fetchPirateAvailability(date);
+        const result = await fetchPirateAvailability(date, duration);
         setAvailability(prev => ({ ...prev, [date]: result }));
         setError(null);
       } catch (e) {
@@ -431,7 +432,7 @@ export default function AvailabilityView() {
         setLoading(prev => ({ ...prev, [date]: false }));
       }
     }));
-  }, [availability]);
+  }, [availability, duration]);
   const handleLoad1Day = () => {
     const start = dates.length > 0
       ? addDays(dates[dates.length - 1], 1)
@@ -461,14 +462,29 @@ export default function AvailabilityView() {
     }));
   };
   const handleWhatsApp = ({ date, hour, slot, membersFree }) => {
-    const timeStr = `${String(hour).padStart(2, "0")}:00–${String(hour + DURATION).padStart(2, "0")}:00`;
+    const timeStr = `${String(hour).padStart(2, "0")}:00–${String(hour + duration).padStart(2, "0")}:00`;
     const attending = membersFree.map(m => m.name).join(", ");
-    const bookUrl = `https://book.pirate.com/booking/${DECK_SLUG}/${slot.best.studioId}/${slot.best.slotTime}?duration=${DURATION}&studio_super_type=1&total_guests=0`;
+    const bookUrl = `https://book.pirate.com/booking/${DECK_SLUG}/${slot.best.studioId}/${slot.best.slotTime}?duration=${duration}&studio_super_type=1&total_guests=0`;
     const msg = `Hey band 🎸\n\nRehearsal slot at Pirate Studios Camden:\n📅 ${formatDate(date)}\n⏰ ${timeStr}\n🎛 Studio ${slot.best.studioNum} (£${slot.best.price})\n👥 ${attending}\n\nBook at: ${bookUrl}`;
     const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     setWhatsappMsg({ text: msg, url });
     setSelectedSlot(null);
   };
+  // Re-fetch all loaded dates when duration changes
+  const prevDurationRef = useRef(duration);
+  useEffect(() => {
+    if (prevDurationRef.current !== duration) {
+      prevDurationRef.current = duration;
+      if (dates.length > 0) {
+        setAvailability({});
+        setSelectedSlot(null);
+        // loadDates will re-fetch since availability was cleared
+        const toRefetch = [...dates];
+        // Small delay to let state settle
+        setTimeout(() => loadDates(toRefetch), 0);
+      }
+    }
+  }, [duration]);
   // Initial load — start from most recent Monday (or today if Monday)
   useEffect(() => {
     if (dates.length === 0) {
@@ -495,7 +511,7 @@ export default function AvailabilityView() {
             Pirate Studios Camden
           </div>
           <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 1 }}>
-            Rehearsal Pro · {DURATION}hrs · Studios 16, 13, 22, 32, 21, 17
+            Rehearsal Pro · {duration}hrs · Studios 16, 13, 22, 32, 21, 17
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -577,6 +593,7 @@ export default function AvailabilityView() {
                 onSlotClick={setSelectedSlot}
                 visibleHours={visibleHours}
                 allowStudioSwitch={allowStudioSwitch}
+                duration={duration}
               />
             ))
           )}
@@ -613,6 +630,27 @@ export default function AvailabilityView() {
           />
           Allow moving between studios
         </label>
+        <label style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          fontSize: 12, color: "var(--color-text-secondary)",
+          marginLeft: 16,
+        }}>
+          Slot duration
+          <select
+            value={duration}
+            onChange={e => setDuration(Number(e.target.value))}
+            style={{
+              fontSize: 12, padding: "2px 4px", borderRadius: 4,
+              border: "0.5px solid var(--color-border-tertiary)",
+              background: "var(--color-background-secondary)",
+              color: "var(--color-text-primary)",
+              cursor: "pointer",
+            }}
+          >
+            <option value={3}>3 hours</option>
+            <option value={4}>4 hours</option>
+          </select>
+        </label>
       </div>
       {/* Error banner */}
       {error && (
@@ -634,6 +672,7 @@ export default function AvailabilityView() {
           detail={selectedSlot}
           onClose={() => setSelectedSlot(null)}
           onWhatsApp={handleWhatsApp}
+          duration={duration}
         />
       )}
       {/* WhatsApp message panel */}
