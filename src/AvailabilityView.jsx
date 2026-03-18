@@ -155,9 +155,22 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
     }
     return true;
   };
+  // Find the best studio available across all DURATION hours from h
+  const bestCommonStudio = (h) => {
+    const hours = Array.from({ length: DURATION }, (_, i) => h + i);
+    if (hours.some(hr => !availability?.[hr])) return null;
+    const firstAll = availability[h]?.all || [];
+    const common = firstAll.filter(s =>
+      hours.every(hr => availability[hr]?.all?.some(a => a.studioNum === s.studioNum))
+    );
+    common.sort((a, b) => a.rank - b.rank);
+    return common[0] || null;
+  };
   // Which hours should be highlighted by the hover
   const hoverSet = new Set();
-  if (hoveredHour !== null && hasConsecutive(hoveredHour)) {
+  const hoverStudio = hoveredHour !== null && hasConsecutive(hoveredHour)
+    ? bestCommonStudio(hoveredHour) : null;
+  if (hoverStudio) {
     for (let i = 0; i < DURATION; i++) hoverSet.add(hoveredHour + i);
   }
   return (
@@ -216,10 +229,20 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
           const allFree = membersFree.length === BAND_MEMBERS.length;
           const noneFree = membersFree.length === 0;
           const highlight = slot && membersFree.length >= 4;
+          // When hovered, show the common studio instead of the per-hour best
+          const isHovered = hoverSet.has(hour);
+          const displayStudio = isHovered && hoverStudio ? hoverStudio : slot?.best;
+          const displayColor = STUDIO_COLORS[displayStudio?.studioNum] || "#888";
           return (
             <div
               key={hour}
-              onClick={() => slot && hasConsecutive(hour) && onSlotClick({ date, hour, slot, membersFree })}
+              onClick={() => {
+                if (!slot || !hasConsecutive(hour)) return;
+                const common = bestCommonStudio(hour);
+                // Override slot.best with the common studio so the modal shows the right one
+                const overriddenSlot = common ? { ...slot, best: common } : slot;
+                onSlotClick({ date, hour, slot: overriddenSlot, membersFree });
+              }}
               onMouseEnter={() => slot && setHoveredHour(hour)}
               onMouseLeave={() => setHoveredHour(null)}
               style={{
@@ -228,8 +251,8 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
                 padding: "4px 6px",
                 boxSizing: "border-box",
                 cursor: slot && hasConsecutive(hour) ? "pointer" : "default",
-                background: hoverSet.has(hour)
-                  ? (STUDIO_COLORS[availability[hour]?.best?.studioNum] || "#888") + "22"
+                background: isHovered
+                  ? displayColor + "22"
                   : highlight
                   ? STUDIO_COLORS[slot.best.studioNum] + "12"
                   : "transparent",
@@ -248,20 +271,20 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <span style={{
                       width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
-                      background: STUDIO_COLORS[slot.best.studioNum],
+                      background: displayColor,
                     }} />
                     <span style={{
                       fontSize: 10, fontWeight: 500,
-                      color: STUDIO_COLORS[slot.best.studioNum],
+                      color: displayColor,
                     }}>
-                      {slot.best.studioNum} – £{slot.best.price}
+                      {displayStudio.studioNum} – £{displayStudio.price}
                     </span>
                   </div>
                   {highlight && (
                     <div style={{
                       position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)",
                       fontSize: 9,
-                      color: STUDIO_COLORS[slot.best.studioNum],
+                      color: displayColor,
                     }}>
                       {membersFree.length === 5 ? "★" : `${membersFree.length}/5`}
                     </div>
