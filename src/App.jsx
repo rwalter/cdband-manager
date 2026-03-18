@@ -163,13 +163,66 @@ const NAV = [
   { id: "availability",label: "Availability", icon: "◷" },
   { id: "rehearsals",  label: "Rehearsals",   icon: "♪" },
 ];
+function UserSelect({ onSelect }) {
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      minHeight: "100vh", padding: 24, fontFamily: "var(--font-sans)",
+    }}>
+      <div style={{ textAlign: "center", marginBottom: 32 }}>
+        <div style={{ fontSize: 28, fontWeight: 500, color: "var(--color-text-primary)", marginBottom: 6 }}>
+          Band Manager
+        </div>
+        <div style={{ fontSize: 14, color: "var(--color-text-secondary)" }}>Who are you?</div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 340 }}>
+        {BAND_MEMBERS.map(m => (
+          <Card
+            key={m.id}
+            style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", cursor: "pointer" }}
+          >
+            <div onClick={() => onSelect(m)} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%" }}>
+              <Avatar member={m} size={40} />
+              <div>
+                <div style={{ fontWeight: 500, fontSize: 15, color: "var(--color-text-primary)" }}>{m.name}</div>
+                <div style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>{m.role}</div>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState("availability");
   const [rehearsals] = useState(INITIAL_REHEARSALS);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("cdband-currentUser");
+      const id = saved ? JSON.parse(saved) : null;
+      return BAND_MEMBERS.find(m => m.id === id) || null;
+    } catch { return null; }
+  });
+
+  const handleLogin = (member) => {
+    setCurrentUser(member);
+    localStorage.setItem("cdband-currentUser", JSON.stringify(member.id));
+  };
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem("cdband-currentUser");
+  };
+
+  if (!currentUser) {
+    return <UserSelect onSelect={handleLogin} />;
+  }
+
   const renderView = () => {
     switch (view) {
       case "home":         return <Dashboard rehearsals={rehearsals} members={BAND_MEMBERS} />;
-      case "availability": return <AvailabilityView />;
+      case "availability": return <AvailabilityView currentUser={currentUser} />;
       case "rehearsals":   return <RehearsalsView rehearsals={rehearsals} members={BAND_MEMBERS} />;
       default:             return null;
     }
@@ -188,12 +241,15 @@ export default function App() {
           </div>
           <div style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>Band HQ</div>
         </div>
-        <div style={{ display: "flex", gap: -6 }}>
-          {BAND_MEMBERS.map((m, i) => (
-            <div key={m.id} style={{ marginLeft: i === 0 ? 0 : -8 }}>
-              <Avatar member={m} size={26} />
-            </div>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Avatar member={currentUser} size={28} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-primary)" }}>{currentUser.name}</div>
+            <div
+              onClick={handleLogout}
+              style={{ fontSize: 10, color: "var(--color-text-secondary)", cursor: "pointer" }}
+            >Switch user</div>
+          </div>
         </div>
       </div>
       <div style={{ padding: "0 16px" }}>
