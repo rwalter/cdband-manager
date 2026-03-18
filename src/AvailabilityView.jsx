@@ -481,7 +481,7 @@ export default function AvailabilityView() {
         <div style={{
           width: 38, flexShrink: 0,
           borderRight: "0.5px solid var(--color-border-tertiary)",
-          paddingTop: 69, // aligns with day header height
+          paddingTop: 111, // aligns with day header height
         }}>
           {HOURS.map(h => (
             <div key={h} style={{
