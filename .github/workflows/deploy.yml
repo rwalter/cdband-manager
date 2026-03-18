@@ -2,6 +2,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: ['**']  # trigger on all branches
+  workflow_dispatch:   # allow manual trigger from Actions tab
 permissions:
   contents: write     # needs write to commit the subfolder
   pages: write
@@ -34,3 +35,20 @@ jobs:
           publish_dir: ./dist
           destination_dir: ${{ steps.branch.outputs.name }}
           keep_files: true   # don't wipe other branches' folders
+
+      # When merging to main, also build and deploy to the root so the
+      # production URL (/cdband-manager/) always reflects the latest main.
+      - name: Build for root
+        if: github.ref == 'refs/heads/main'
+        run: npm run build
+        env:
+          VITE_BASE: /cdband-manager/
+
+      - name: Deploy to root
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          destination_dir: .
+          keep_files: true
