@@ -16,8 +16,6 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run build
-
       - name: Sanitise branch name
         id: branch
         run: |
@@ -25,10 +23,14 @@ jobs:
           SAFE="${BRANCH//\//-}"   # replace / with -
           echo "name=$SAFE" >> $GITHUB_OUTPUT
 
+      - run: npm run build
+        env:
+          VITE_BASE: /cdband-manager/${{ steps.branch.outputs.name }}/
+
       - name: Deploy to subfolder
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
-          destination_dir: ${{ steps.branch.name }}
+          destination_dir: ${{ steps.branch.outputs.name }}
           keep_files: true   # don't wipe other branches' folders
