@@ -79,9 +79,11 @@ async function fetchPirateAvailability(date) {
           candidates.push({
             studioName: studio.studio.name,
             studioNum: studioNum(studio.studio.name),
+            studioId: studio.studio?.id,
             rank: pref.rank,
             price: studio.price?.amount,
             capacity: studio.studio?.capacity,
+            slotTime: slot.time,
           });
         }
       }
@@ -335,7 +337,7 @@ function SlotDetail({ detail, onClose, onWhatsApp }) {
             Share on WhatsApp ↗
           </button>
           <a
-            href={`https://book.pirate.com/?site=${DECK_SLUG}&date=${date}&time=${hour}&duration=${DURATION}`}
+            href={`https://book.pirate.com/booking/${DECK_SLUG}/${slot.best.studioId}/${slot.best.slotTime}?duration=${DURATION}&studio_super_type=1&total_guests=0`}
             target="_blank"
             rel="noopener noreferrer"
             style={{
@@ -420,7 +422,8 @@ export default function AvailabilityView() {
   const handleWhatsApp = ({ date, hour, slot, membersFree }) => {
     const timeStr = `${String(hour).padStart(2, "0")}:00–${String(hour + DURATION).padStart(2, "0")}:00`;
     const attending = membersFree.map(m => m.name).join(", ");
-    const msg = `Hey band 🎸\n\nRehearsal slot at Pirate Studios Camden:\n📅 ${formatDate(date)}\n⏰ ${timeStr}\n🎛 Studio ${slot.best.studioNum} (£${slot.best.price})\n👥 ${attending}\n\nBook at: https://book.pirate.com/?site=${DECK_SLUG}&date=${date}&time=${hour}&duration=${DURATION}`;
+    const bookUrl = `https://book.pirate.com/booking/${DECK_SLUG}/${slot.best.studioId}/${slot.best.slotTime}?duration=${DURATION}&studio_super_type=1&total_guests=0`;
+    const msg = `Hey band 🎸\n\nRehearsal slot at Pirate Studios Camden:\n📅 ${formatDate(date)}\n⏰ ${timeStr}\n🎛 Studio ${slot.best.studioNum} (£${slot.best.price})\n👥 ${attending}\n\nBook at: ${bookUrl}`;
     const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     setWhatsappMsg({ text: msg, url });
     setSelectedSlot(null);
