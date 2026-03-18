@@ -2,6 +2,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: ['**']  # trigger on all branches
+  workflow_dispatch:   # allow manual trigger from Actions tab
 permissions:
   contents: write     # needs write to commit the subfolder
   pages: write
