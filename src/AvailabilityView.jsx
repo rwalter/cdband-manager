@@ -29,6 +29,8 @@ const BAND_MEMBERS = [
 // All possible hours (8am–7pm); filtered at render time by showExtended toggle
 const ALL_HOURS = Array.from({ length: 12 }, (_, i) => i + 8);
 const DEFAULT_HOURS = ALL_HOURS.filter(h => h >= 9 && h <= 17); // 9am–5pm
+const STATUS_CYCLE = ["unavailable", "available", "maybe"]; // cycle order
+const MAYBE_COLOR = "#EF9F27"; // amber for maybe state
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 const formatDate = (d) =>
   new Date(d).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -47,6 +49,44 @@ const isWeekend = (dateStr) => {
 const studioNum = (name) => name?.replace("Studio ", "").trim();
 const preferenceOf = (name) =>
   STUDIO_PREFERENCE.find((s) => s.number === studioNum(name));
+
+// ─── AVAILABILITY HELPERS ────────────────────────────────────────────────────
+// memberAvailability shape:
+// { "2026-04-05": { 1: { dayStatus: "available"|"maybe"|"unavailable", dayReason: "", slots: { 9: { status, reason } } } } }
+
+function getMemberDayStatus(memberAvailability, date, memberId) {
+  return memberAvailability[date]?.[memberId]?.dayStatus || "unavailable";
+}
+
+function getMemberSlotStatus(memberAvailability, date, memberId, hour) {
+  const entry = memberAvailability[date]?.[memberId];
+  if (!entry) return "unavailable";
+  if (entry.dayStatus === "unavailable") return "unavailable";
+  const slotEntry = entry.slots?.[hour];
+  if (slotEntry) return slotEntry.status;
+  // No slot-level override — inherit from day status
+  return entry.dayStatus || "unavailable";
+}
+
+function getMemberSlotReason(memberAvailability, date, memberId, hour) {
+  const entry = memberAvailability[date]?.[memberId];
+  if (!entry) return "";
+  const slotEntry = entry.slots?.[hour];
+  if (slotEntry?.reason) return slotEntry.reason;
+  if (entry.dayReason) return entry.dayReason;
+  return "";
+}
+
+function isMemberFree(memberAvailability, date, memberId, hour) {
+  const status = getMemberSlotStatus(memberAvailability, date, memberId, hour);
+  return status === "available" || status === "maybe";
+}
+
+function nextStatus(current) {
+  const idx = STATUS_CYCLE.indexOf(current);
+  return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+}
+
 // ─── API ─────────────────────────────────────────────────────────────────────
 async function fetchPirateAvailability(date, duration) {
   // Don't fetch past dates — return empty
@@ -106,17 +146,29 @@ async function fetchPirateAvailability(date, duration) {
   return hourMap;
 }
 // ─── SUB-COMPONENTS ──────────────────────────────────────────────────────────
-const Avatar = ({ member, size = 24, faded = false }) => (
-  <div style={{
-    width: size, height: size, borderRadius: "50%", flexShrink: 0,
-    background: faded ? "var(--color-background-secondary)" : member.color + "22",
-    border: `1.5px solid ${faded ? "var(--color-border-tertiary)" : member.color + "66"}`,
-    display: "flex", alignItems: "center", justifyContent: "center",
-    fontSize: size * 0.33, fontWeight: 500,
-    color: faded ? "var(--color-text-secondary)" : member.color,
-    transition: "all 0.2s",
-  }}>{member.initials}</div>
-);
+const Avatar = ({ member, size = 24, faded = false, status }) => {
+  // status can be "available", "maybe", or undefined/null (uses faded prop)
+  const isMaybe = status === "maybe";
+  const isAvailable = status === "available";
+  const effectiveFaded = faded || (status && status === "unavailable");
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%", flexShrink: 0,
+      background: effectiveFaded ? "var(--color-background-secondary)"
+        : isMaybe ? MAYBE_COLOR + "22"
+        : member.color + "22",
+      border: isMaybe
+        ? `1.5px dashed ${MAYBE_COLOR}88`
+        : `1.5px solid ${effectiveFaded ? "var(--color-border-tertiary)" : member.color + "66"}`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: size * 0.33, fontWeight: 500,
+      color: effectiveFaded ? "var(--color-text-secondary)"
+        : isMaybe ? MAYBE_COLOR
+        : member.color,
+      transition: "all 0.2s",
+    }}>{member.initials}</div>
+  );
+};
 const StudioBadge = ({ num, label }) => {
   const color = STUDIO_COLORS[num] || "#888";
   return (
@@ -133,8 +185,75 @@ const StudioBadge = ({ num, label }) => {
     </span>
   );
 };
+// ─── MAYBE REASON SHEET ─────────────────────────────────────────────────────
+function MaybeReasonSheet({ prompt, onSave, onCancel }) {
+  const [reason, setReason] = useState(prompt?.currentReason || "");
+  if (!prompt) return null;
+  const timeLabel = prompt.type === "slot"
+    ? `${String(prompt.hour).padStart(2, "0")}:00`
+    : "All day";
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 60,
+      background: "rgba(0,0,0,0.35)",
+      display: "flex", alignItems: "flex-end", justifyContent: "center",
+    }} onClick={onCancel}>
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: "var(--color-background-primary)",
+          borderRadius: "16px 16px 0 0",
+          padding: "20px 20px 32px",
+          width: "100%", maxWidth: 480,
+          borderTop: "0.5px solid var(--color-border-tertiary)",
+        }}
+      >
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-secondary)", margin: "0 auto 16px" }} />
+        <div style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: 4 }}>
+          {formatDate(prompt.date)} · {timeLabel}
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 500, color: MAYBE_COLOR, marginBottom: 16 }}>
+          Maybe available
+        </div>
+        <input
+          type="text"
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          placeholder="Reason (optional) e.g. Waiting to hear about another meeting"
+          autoFocus
+          style={{
+            width: "100%", padding: "10px 12px", borderRadius: 8,
+            border: "0.5px solid var(--color-border-tertiary)",
+            background: "var(--color-background-secondary)",
+            color: "var(--color-text-primary)",
+            fontSize: 13, outline: "none", boxSizing: "border-box",
+          }}
+          onKeyDown={e => { if (e.key === "Enter") onSave(reason); }}
+        />
+        <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+          <button
+            onClick={onCancel}
+            style={{
+              flex: 1, padding: "10px", borderRadius: 10, fontSize: 13,
+              background: "none",
+              border: "0.5px solid var(--color-border-tertiary)",
+              color: "var(--color-text-primary)", cursor: "pointer",
+            }}
+          >Cancel</button>
+          <button
+            onClick={() => onSave(reason)}
+            style={{
+              flex: 1, padding: "10px", borderRadius: 10, fontSize: 13, fontWeight: 500,
+              background: MAYBE_COLOR, border: "none", color: "#fff", cursor: "pointer",
+            }}
+          >Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 // ─── DAY COLUMN ──────────────────────────────────────────────────────────────
-function DayColumn({ date, availability, loading, memberAvailability, myId, onToggleMember, onSlotClick, visibleHours, allowStudioSwitch, duration }) {
+function DayColumn({ date, availability, loading, memberAvailability, currentUser, onToggleDayStatus, onToggleSlot, onSlotClick, visibleHours, allowStudioSwitch, duration }) {
   const [hoveredHour, setHoveredHour] = useState(null);
   const weekend = isWeekend(date);
   const isToday = date === todayStr();
@@ -173,6 +292,7 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
   if (hoverStudio) {
     for (let i = 0; i < duration; i++) hoverSet.add(hoveredHour + i);
   }
+  const myDayStatus = getMemberDayStatus(memberAvailability, date, currentUser.id);
   return (
     <div style={{
       minWidth: 120, flex: 1, flexShrink: 0,
@@ -204,45 +324,50 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
         }}>
           {new Date(date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
         </div>
-        {/* Member availability toggles */}
+        {/* Member availability indicators — only current user is clickable */}
         <div style={{ display: "flex", gap: 3, marginTop: 7, flexWrap: "wrap" }}>
           {BAND_MEMBERS.map(m => {
-            const free = memberAvailability[date]?.[m.id] ?? false;
+            const isMe = m.id === currentUser.id;
+            const dayStatus = getMemberDayStatus(memberAvailability, date, m.id);
             return (
               <div
                 key={m.id}
-                title={`${m.name} — click to toggle`}
-                onClick={() => onToggleMember(date, m.id)}
-                style={{ cursor: "pointer" }}
+                title={isMe
+                  ? `${m.name} (you) — ${dayStatus} — click to change`
+                  : `${m.name} — ${dayStatus}`}
+                onClick={isMe ? () => onToggleDayStatus(date) : undefined}
+                style={{ cursor: isMe ? "pointer" : "default" }}
               >
-                <Avatar member={m} size={20} faded={!free} />
+                <Avatar member={m} size={20} status={dayStatus} />
               </div>
             );
           })}
         </div>
+        {/* Day-level status label for current user */}
+        {myDayStatus !== "unavailable" && (
+          <div style={{
+            fontSize: 9, marginTop: 4,
+            color: myDayStatus === "maybe" ? MAYBE_COLOR : "#1D9E75",
+            fontWeight: 500,
+          }}>
+            {myDayStatus === "maybe" ? "Maybe" : "Free"} today
+          </div>
+        )}
       </div>
       {/* Hour slots */}
       <div>
         {visibleHours.map(hour => {
           const slot = availability?.[hour];
-          const membersFree = BAND_MEMBERS.filter(m => memberAvailability[date]?.[m.id]);
-          const allFree = membersFree.length === BAND_MEMBERS.length;
-          const noneFree = membersFree.length === 0;
+          const membersFree = BAND_MEMBERS.filter(m => isMemberFree(memberAvailability, date, m.id, hour));
           const highlight = slot && membersFree.length >= 4;
           // When hovered, show the common studio instead of the per-hour best
           const isHovered = hoverSet.has(hour);
           const displayStudio = isHovered && hoverStudio ? hoverStudio : slot?.best;
           const displayColor = STUDIO_COLORS[displayStudio?.studioNum] || "#888";
+          const mySlotStatus = getMemberSlotStatus(memberAvailability, date, currentUser.id, hour);
           return (
             <div
               key={hour}
-              onClick={() => {
-                if (!slot || !hasConsecutive(hour)) return;
-                const common = bestCommonStudio(hour);
-                // Override slot.best with the common studio so the modal shows the right one
-                const overriddenSlot = common ? { ...slot, best: common } : slot;
-                onSlotClick({ date, hour, slot: overriddenSlot, membersFree });
-              }}
               onMouseEnter={() => slot && setHoveredHour(hour)}
               onMouseLeave={() => setHoveredHour(null)}
               style={{
@@ -250,7 +375,8 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
                 borderBottom: "0.5px solid var(--color-border-tertiary)",
                 padding: "4px 6px",
                 boxSizing: "border-box",
-                cursor: slot && hasConsecutive(hour) ? "pointer" : "default",
+                display: "flex", alignItems: "center",
+                cursor: "default",
                 background: isHovered
                   ? displayColor + "22"
                   : highlight
@@ -260,14 +386,48 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
                 position: "relative",
               }}
             >
+              {/* My availability toggle dot */}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSlot(date, hour);
+                }}
+                title={`Your status: ${mySlotStatus} — click to change`}
+                style={{
+                  width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
+                  marginRight: 4, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: mySlotStatus === "available" ? currentUser.color + "22"
+                    : mySlotStatus === "maybe" ? MAYBE_COLOR + "22"
+                    : "transparent",
+                  border: mySlotStatus === "available" ? `1.5px solid ${currentUser.color}`
+                    : mySlotStatus === "maybe" ? `1.5px dashed ${MAYBE_COLOR}`
+                    : "1.5px solid var(--color-border-tertiary)",
+                  transition: "all 0.15s",
+                }}
+              >
+                {mySlotStatus === "available" && (
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: currentUser.color }} />
+                )}
+                {mySlotStatus === "maybe" && (
+                  <span style={{ fontSize: 9, color: MAYBE_COLOR, fontWeight: 700 }}>?</span>
+                )}
+              </div>
               {loading ? (
                 <div style={{
                   height: 8, borderRadius: 4, width: "60%",
                   background: "var(--color-background-secondary)",
-                  marginTop: 6,
                 }} />
               ) : slot ? (
-                <>
+                <div
+                  style={{ flex: 1, cursor: hasConsecutive(hour) ? "pointer" : "default" }}
+                  onClick={() => {
+                    if (!slot || !hasConsecutive(hour)) return;
+                    const common = bestCommonStudio(hour);
+                    const overriddenSlot = common ? { ...slot, best: common } : slot;
+                    onSlotClick({ date, hour, slot: overriddenSlot, membersFree });
+                  }}
+                >
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <span style={{
                       width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
@@ -280,22 +440,25 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
                       {displayStudio.studioNum} – £{displayStudio.price}
                     </span>
                   </div>
-                  {highlight && (
-                    <div style={{
-                      position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)",
-                      fontSize: 9,
-                      color: displayColor,
-                    }}>
-                      {membersFree.length === 5 ? "★" : `${membersFree.length}/5`}
-                    </div>
-                  )}
-                </>
+                </div>
               ) : (
                 <div style={{
                   height: 4, borderRadius: 2, width: "30%",
                   background: "var(--color-border-tertiary)",
-                  marginTop: 8, opacity: 0.4,
+                  opacity: 0.4,
                 }} />
+              )}
+              {/* Member count indicator */}
+              {!loading && slot && membersFree.length > 0 && (
+                <div style={{
+                  position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)",
+                  fontSize: 9,
+                  color: membersFree.length >= 4
+                    ? STUDIO_COLORS[slot.best.studioNum]
+                    : "var(--color-text-secondary)",
+                }}>
+                  {membersFree.length === 5 ? "★" : `${membersFree.length}/5`}
+                </div>
               )}
             </div>
           );
@@ -305,10 +468,9 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
   );
 }
 // ─── SLOT DETAIL MODAL ───────────────────────────────────────────────────────
-function SlotDetail({ detail, onClose, onWhatsApp, duration }) {
+function SlotDetail({ detail, memberAvailability, onClose, onWhatsApp, duration }) {
   if (!detail) return null;
   const { date, hour, slot, membersFree } = detail;
-  const membersMissing = BAND_MEMBERS.filter(m => !membersFree.find(f => f.id === m.id));
   const timeStr = `${String(hour).padStart(2, "0")}:00–${String(hour + duration).padStart(2, "0")}:00`;
   return (
     <div style={{
@@ -344,24 +506,32 @@ function SlotDetail({ detail, onClose, onWhatsApp, duration }) {
             ))}
           </div>
         </div>
-        {/* Who's free */}
+        {/* Who's free — per-slot status */}
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 11, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
             Attendance
           </div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            {membersFree.map(m => (
-              <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
-                <Avatar member={m} size={24} />
-                <span style={{ color: "var(--color-text-primary)" }}>{m.name}</span>
-              </div>
-            ))}
-            {membersMissing.map(m => (
-              <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
-                <Avatar member={m} size={24} faded />
-                <span style={{ color: "var(--color-text-secondary)", textDecoration: "line-through" }}>{m.name}</span>
-              </div>
-            ))}
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", flexDirection: "column" }}>
+            {BAND_MEMBERS.map(m => {
+              const status = getMemberSlotStatus(memberAvailability, date, m.id, hour);
+              const reason = getMemberSlotReason(memberAvailability, date, m.id, hour);
+              return (
+                <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                  <Avatar member={m} size={24} status={status} />
+                  <div>
+                    <span style={{
+                      color: status === "unavailable" ? "var(--color-text-secondary)" : "var(--color-text-primary)",
+                      textDecoration: status === "unavailable" ? "line-through" : "none",
+                    }}>{m.name}</span>
+                    {status === "maybe" && (
+                      <span style={{ fontSize: 11, color: MAYBE_COLOR, marginLeft: 6 }}>
+                        maybe{reason ? ` — ${reason}` : ""}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
@@ -394,19 +564,31 @@ function SlotDetail({ detail, onClose, onWhatsApp, duration }) {
   );
 }
 // ─── MAIN VIEW ───────────────────────────────────────────────────────────────
-export default function AvailabilityView() {
+export default function AvailabilityView({ currentUser }) {
   const [dates, setDates] = useState([]);
   const [availability, setAvailability] = useState({});   // { dateStr: { hour: slotOrNull } }
   const [loading, setLoading] = useState({});              // { dateStr: bool }
-  const [memberAvailability, setMemberAvailability] = useState({}); // { dateStr: { memberId: bool } }
+  const [memberAvailability, setMemberAvailability] = useState(() => {
+    try {
+      const saved = localStorage.getItem("cdband-memberAvailability");
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [whatsappMsg, setWhatsappMsg] = useState(null);
   const [error, setError] = useState(null);
   const [showExtended, setShowExtended] = useState(false);
   const [allowStudioSwitch, setAllowStudioSwitch] = useState(false);
   const [duration, setDuration] = useState(DEFAULT_DURATION);
+  const [maybePrompt, setMaybePrompt] = useState(null);
   const visibleHours = showExtended ? ALL_HOURS : DEFAULT_HOURS;
   const scrollRef = useRef(null);
+
+  // Persist memberAvailability to localStorage
+  useEffect(() => {
+    localStorage.setItem("cdband-memberAvailability", JSON.stringify(memberAvailability));
+  }, [memberAvailability]);
+
   const loadDates = useCallback(async (newDates) => {
     // Add only dates not already loaded
     const toLoad = newDates.filter(d => !(d in availability));
@@ -452,15 +634,156 @@ export default function AvailabilityView() {
       }
     }, 100);
   };
-  const handleToggleMember = (date, memberId) => {
-    setMemberAvailability(prev => ({
-      ...prev,
-      [date]: {
-        ...(prev[date] || {}),
-        [memberId]: !(prev[date]?.[memberId] ?? false),
-      },
-    }));
+
+  // Day-level toggle: cycle unavailable → available → maybe
+  const handleToggleDayStatus = (date) => {
+    const myId = currentUser.id;
+    const current = getMemberDayStatus(memberAvailability, date, myId);
+    const next = nextStatus(current);
+    if (next === "maybe") {
+      // Show the reason prompt, but set status immediately
+      setMemberAvailability(prev => ({
+        ...prev,
+        [date]: {
+          ...(prev[date] || {}),
+          [myId]: {
+            ...(prev[date]?.[myId] || {}),
+            dayStatus: "maybe",
+            slots: prev[date]?.[myId]?.slots || {},
+          },
+        },
+      }));
+      setMaybePrompt({ type: "day", date, currentReason: memberAvailability[date]?.[myId]?.dayReason || "" });
+    } else {
+      setMemberAvailability(prev => ({
+        ...prev,
+        [date]: {
+          ...(prev[date] || {}),
+          [myId]: {
+            ...(prev[date]?.[myId] || {}),
+            dayStatus: next,
+            dayReason: "",
+            slots: next === "unavailable" ? {} : (prev[date]?.[myId]?.slots || {}),
+          },
+        },
+      }));
+    }
   };
+
+  // Slot-level toggle: cycle unavailable → available → maybe
+  const handleToggleSlot = (date, hour) => {
+    const myId = currentUser.id;
+    const dayStatus = getMemberDayStatus(memberAvailability, date, myId);
+
+    // If day is "unavailable", first set day to "available" then set the slot
+    if (dayStatus === "unavailable") {
+      setMemberAvailability(prev => ({
+        ...prev,
+        [date]: {
+          ...(prev[date] || {}),
+          [myId]: {
+            dayStatus: "available",
+            dayReason: "",
+            slots: { [hour]: { status: "available" } },
+          },
+        },
+      }));
+      return;
+    }
+
+    const currentSlotStatus = getMemberSlotStatus(memberAvailability, date, myId, hour);
+    const next = nextStatus(currentSlotStatus);
+
+    if (next === "maybe") {
+      // Set to maybe immediately, then show reason prompt
+      setMemberAvailability(prev => ({
+        ...prev,
+        [date]: {
+          ...(prev[date] || {}),
+          [myId]: {
+            ...(prev[date]?.[myId] || {}),
+            slots: {
+              ...(prev[date]?.[myId]?.slots || {}),
+              [hour]: { status: "maybe", reason: "" },
+            },
+          },
+        },
+      }));
+      setMaybePrompt({ type: "slot", date, hour, currentReason: "" });
+    } else if (next === "unavailable") {
+      // Remove the slot entry (revert to day-level default)
+      setMemberAvailability(prev => {
+        const slots = { ...(prev[date]?.[myId]?.slots || {}) };
+        delete slots[hour];
+        return {
+          ...prev,
+          [date]: {
+            ...(prev[date] || {}),
+            [myId]: {
+              ...(prev[date]?.[myId] || {}),
+              slots,
+            },
+          },
+        };
+      });
+    } else {
+      // "available"
+      setMemberAvailability(prev => ({
+        ...prev,
+        [date]: {
+          ...(prev[date] || {}),
+          [myId]: {
+            ...(prev[date]?.[myId] || {}),
+            slots: {
+              ...(prev[date]?.[myId]?.slots || {}),
+              [hour]: { status: "available" },
+            },
+          },
+        },
+      }));
+    }
+  };
+
+  // Save maybe reason from the prompt sheet
+  const handleMaybeReasonSave = (reason) => {
+    if (!maybePrompt) return;
+    const myId = currentUser.id;
+    const { type, date, hour } = maybePrompt;
+    if (type === "day") {
+      setMemberAvailability(prev => ({
+        ...prev,
+        [date]: {
+          ...(prev[date] || {}),
+          [myId]: {
+            ...(prev[date]?.[myId] || {}),
+            dayReason: reason,
+          },
+        },
+      }));
+    } else {
+      setMemberAvailability(prev => ({
+        ...prev,
+        [date]: {
+          ...(prev[date] || {}),
+          [myId]: {
+            ...(prev[date]?.[myId] || {}),
+            slots: {
+              ...(prev[date]?.[myId]?.slots || {}),
+              [hour]: { status: "maybe", reason },
+            },
+          },
+        },
+      }));
+    }
+    setMaybePrompt(null);
+  };
+
+  // Cancel maybe — revert to previous status
+  const handleMaybeReasonCancel = () => {
+    setMaybePrompt(null);
+    // The status is already set to "maybe" — leave it. User can cycle again to change.
+  };
+
   const handleWhatsApp = ({ date, hour, slot, membersFree }) => {
     const timeStr = `${String(hour).padStart(2, "0")}:00–${String(hour + duration).padStart(2, "0")}:00`;
     const attending = membersFree.map(m => m.name).join(", ");
@@ -588,8 +911,9 @@ export default function AvailabilityView() {
                 availability={availability[date]}
                 loading={!!loading[date]}
                 memberAvailability={memberAvailability}
-                myId={1}
-                onToggleMember={handleToggleMember}
+                currentUser={currentUser}
+                onToggleDayStatus={handleToggleDayStatus}
+                onToggleSlot={handleToggleSlot}
                 onSlotClick={setSelectedSlot}
                 visibleHours={visibleHours}
                 allowStudioSwitch={allowStudioSwitch}
@@ -670,9 +994,18 @@ export default function AvailabilityView() {
       {selectedSlot && (
         <SlotDetail
           detail={selectedSlot}
+          memberAvailability={memberAvailability}
           onClose={() => setSelectedSlot(null)}
           onWhatsApp={handleWhatsApp}
           duration={duration}
+        />
+      )}
+      {/* Maybe reason prompt */}
+      {maybePrompt && (
+        <MaybeReasonSheet
+          prompt={maybePrompt}
+          onSave={handleMaybeReasonSave}
+          onCancel={handleMaybeReasonCancel}
         />
       )}
       {/* WhatsApp message panel */}
