@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [claude/times-on-left]
+    branches: [claude/integrate-availability-view-wWA1W]
 
 permissions:
   contents: read
