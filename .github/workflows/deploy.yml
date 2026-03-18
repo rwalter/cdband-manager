@@ -1,54 +1,39 @@
 name: Deploy to GitHub Pages
+
 on:
   push:
-    branches: ['**']  # trigger on all branches
-  workflow_dispatch:   # allow manual trigger from Actions tab
+    branches:
+      - main
+  workflow_dispatch:
+
 permissions:
-  contents: write     # needs write to commit the subfolder
-  pages: write
-  id-token: write
+  contents: write
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+
       - run: npm ci
-      - name: Sanitise branch name
-        id: branch
-        run: |
-          BRANCH="${GITHUB_REF#refs/heads/}"
-          SAFE="${BRANCH//\//-}"   # replace / with -
-          echo "name=$SAFE" >> $GITHUB_OUTPUT
 
-      - run: npm run build
-        env:
-          VITE_BASE: /cdband-manager/${{ steps.branch.outputs.name }}/
-
-      - name: Deploy to subfolder
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          destination_dir: ${{ steps.branch.outputs.name }}
-          keep_files: true   # don't wipe other branches' folders
-
-      # When merging to main, also build and deploy to the root so the
-      # production URL (/cdband-manager/) always reflects the latest main.
-      - name: Build for root
-        if: github.ref == 'refs/heads/main'
+      - name: Build for production
         run: npm run build
         env:
           VITE_BASE: /cdband-manager/
 
-      - name: Deploy to root
-        if: github.ref == 'refs/heads/main'
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          destination_dir: .
-          keep_files: true
+          branch: gh-pages
+          folder: dist
+          clean: true
