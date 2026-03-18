@@ -2,39 +2,39 @@ import { useState, useMemo } from "react";
 import AvailabilityView from "./AvailabilityView";
 
 const BAND_MEMBERS = [
-  { id: 1, name: "Roly", initials: "RO", color: "#5DCAA5", role: "Guitar / Vocals" },
-  { id: 2, name: "Jamie", initials: "JA", color: "#7F77DD", role: "Bass" },
-  { id: 3, name: "Soph", initials: "SO", color: "#D4537E", role: "Keys" },
-  { id: 4, name: "Marcus", initials: "MA", color: "#378ADD", role: "Drums" },
-  { id: 5, name: "Femi", initials: "FE", color: "#EF9F27", role: "Lead Guitar" },
+  { id: 1, name: "Alex", initials: "AL", color: "#5DCAA5", role: "Guitar / Vocals" },
+  { id: 2, name: "Sam", initials: "SA", color: "#7F77DD", role: "Bass" },
+  { id: 3, name: "Jordan", initials: "JO", color: "#D4537E", role: "Keys" },
+  { id: 4, name: "Morgan", initials: "MO", color: "#378ADD", role: "Drums" },
+  { id: 5, name: "Riley", initials: "RI", color: "#EF9F27", role: "Lead Guitar" },
 ];
 const INITIAL_SONGS = [
   { id: 1, title: "Mortgage Blues", status: "ready", bpm: 94, key: "Am", notes: "Tight on bridge, nail the stop-start" },
-  { id: 2, title: "Dad at the Disco", status: "learning", bpm: 128, key: "F", notes: "Marcus still wobbly on fills in verse 2" },
+  { id: 2, title: "Dad at the Disco", status: "learning", bpm: 128, key: "F", notes: "Morgan still wobbly on fills in verse 2" },
   { id: 3, title: "Semi-Detached", status: "ready", bpm: 112, key: "G", notes: "" },
   { id: 4, title: "Moderate Feelings", status: "polishing", bpm: 76, key: "D", notes: "Solo needs work — practise separately" },
   { id: 5, title: "Radio 4", status: "ready", bpm: 88, key: "Em", notes: "" },
-  { id: 6, title: "The Sensible Option", status: "idea", bpm: null, key: null, notes: "Roly's new riff — demo it next session" },
+  { id: 6, title: "The Sensible Option", status: "idea", bpm: null, key: null, notes: "New riff — demo it next session" },
   { id: 7, title: "Pension Age Lament", status: "learning", bpm: 102, key: "C", notes: "" },
   { id: 8, title: "Bi-Annual Review", status: "polishing", bpm: 86, key: "Bm", notes: "Intro timing still drifting" },
 ];
 const INITIAL_REHEARSALS = [
   {
-    id: 1, date: "2026-04-05", time: "14:00", venue: "Jamie's Garage",
+    id: 1, date: "2026-04-05", time: "14:00", venue: "Sam's Garage",
     confirmed: true,
     attendees: [1, 2, 3, 4, 5],
     setlist: [1, 3, 5, 2, 8],
     notes: "Full run-through + work on Disco bridge",
   },
   {
-    id: 2, date: "2026-04-19", time: "14:00", venue: "Jamie's Garage",
+    id: 2, date: "2026-04-19", time: "14:00", venue: "Sam's Garage",
     confirmed: true,
     attendees: [1, 2, 4, 5],
     setlist: [1, 5, 4, 7],
-    notes: "Soph away — work on rhythm section tightness",
+    notes: "Jordan away — work on rhythm section tightness",
   },
   {
-    id: 3, date: "2026-05-03", time: "15:00", venue: "Marcus's Loft",
+    id: 3, date: "2026-05-03", time: "15:00", venue: "Morgan's Loft",
     confirmed: false,
     attendees: [],
     setlist: [],
@@ -166,7 +166,7 @@ function SetlistView({ songs, onUpdateSong }) {
       ? songs.filter(s => selected.includes(s.id))
       : songs.filter(s => s.status === "ready");
     const lines = list.map((s, i) => `${i + 1}. ${s.title}${s.key ? ` (${s.key}, ${s.bpm} bpm)` : ""}`).join("\n");
-    const msg = `Centrist Dad — rehearsal setlist 🎸\n\n${lines}\n\nSee you there!`;
+    const msg = `Rehearsal setlist 🎸\n\n${lines}\n\nSee you there!`;
     const encoded = encodeURIComponent(msg);
     setWhatsappMsg({ text: msg, url: `https://wa.me/?text=${encoded}` });
   };
@@ -418,7 +418,7 @@ export default function App() {
       }}>
         <div>
           <div style={{ fontWeight: 500, fontSize: 17, color: "var(--color-text-primary)", letterSpacing: "-0.01em" }}>
-            Centrist Dad
+            Band Manager
           </div>
           <div style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>Band HQ</div>
         </div>

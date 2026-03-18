@@ -20,11 +20,11 @@ const STUDIO_COLORS = {
   "17": "#888780", // grey
 };
 const BAND_MEMBERS = [
-  { id: 1, name: "Roly",   initials: "RO", color: "#1D9E75" },
-  { id: 2, name: "Jamie",  initials: "JA", color: "#7F77DD" },
-  { id: 3, name: "Soph",   initials: "SO", color: "#D4537E" },
-  { id: 4, name: "Marcus", initials: "MA", color: "#378ADD" },
-  { id: 5, name: "Femi",   initials: "FE", color: "#EF9F27" },
+  { id: 1, name: "Alex",   initials: "AL", color: "#1D9E75" },
+  { id: 2, name: "Sam",    initials: "SA", color: "#7F77DD" },
+  { id: 3, name: "Jordan", initials: "JO", color: "#D4537E" },
+  { id: 4, name: "Morgan", initials: "MO", color: "#378ADD" },
+  { id: 5, name: "Riley",  initials: "RI", color: "#EF9F27" },
 ];
 // Hours to display (8am–11pm)
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 8);
@@ -408,7 +408,7 @@ export default function AvailabilityView() {
   const handleWhatsApp = ({ date, hour, slot, membersFree }) => {
     const timeStr = `${String(hour).padStart(2, "0")}:00–${String(hour + DURATION).padStart(2, "0")}:00`;
     const attending = membersFree.map(m => m.name).join(", ");
-    const msg = `Hey Centrist Dad 🎸\n\nRehearsal slot at Pirate Studios Camden:\n📅 ${formatDate(date)}\n⏰ ${timeStr}\n🎛 Studio ${slot.best.studioNum} (£${slot.best.price})\n👥 ${attending}\n\nBook at: https://book.pirate.com/?site=${DECK_SLUG}&date=${date}&time=${hour}&duration=${DURATION}`;
+    const msg = `Hey band 🎸\n\nRehearsal slot at Pirate Studios Camden:\n📅 ${formatDate(date)}\n⏰ ${timeStr}\n🎛 Studio ${slot.best.studioNum} (£${slot.best.price})\n👥 ${attending}\n\nBook at: https://book.pirate.com/?site=${DECK_SLUG}&date=${date}&time=${hour}&duration=${DURATION}`;
     const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     setWhatsappMsg({ text: msg, url });
     setSelectedSlot(null);
