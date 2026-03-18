@@ -26,8 +26,9 @@ const BAND_MEMBERS = [
   { id: 4, name: "Morgan", initials: "MO", color: "#378ADD" },
   { id: 5, name: "Riley",  initials: "RI", color: "#EF9F27" },
 ];
-// Hours to display (8am–7pm)
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 8);
+// All possible hours (8am–7pm); filtered at render time by showExtended toggle
+const ALL_HOURS = Array.from({ length: 12 }, (_, i) => i + 8);
+const DEFAULT_HOURS = ALL_HOURS.filter(h => h >= 9 && h <= 17); // 9am–5pm
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 const formatDate = (d) =>
   new Date(d).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -48,6 +49,12 @@ const preferenceOf = (name) =>
   STUDIO_PREFERENCE.find((s) => s.number === studioNum(name));
 // ─── API ─────────────────────────────────────────────────────────────────────
 async function fetchPirateAvailability(date) {
+  // Don't fetch past dates — return empty
+  if (date < todayStr()) {
+    const hourMap = {};
+    ALL_HOURS.forEach((h) => { hourMap[h] = null; });
+    return hourMap;
+  }
   const startTime = `${date}T08:00:00.000`;
   const url = `https://api.pirate.com/v1/search?deck_slug=${DECK_SLUG}&duration=${DURATION}&start_time=${encodeURIComponent(startTime)}`;
   const res = await fetch(url, {
@@ -66,7 +73,7 @@ async function fetchPirateAvailability(date) {
   });
   // Build a map: hour → best available studio (by preference rank)
   const hourMap = {};
-  HOURS.forEach((h) => {
+  ALL_HOURS.forEach((h) => {
     const hStr = String(h).padStart(2, "0") + ":00";
     const candidates = [];
     proRehearsal.forEach((studio) => {
@@ -127,7 +134,7 @@ const StudioBadge = ({ num, label }) => {
   );
 };
 // ─── DAY COLUMN ──────────────────────────────────────────────────────────────
-function DayColumn({ date, availability, loading, memberAvailability, myId, onToggleMember, onSlotClick }) {
+function DayColumn({ date, availability, loading, memberAvailability, myId, onToggleMember, onSlotClick, visibleHours }) {
   const [hoveredHour, setHoveredHour] = useState(null);
   const weekend = isWeekend(date);
   const isToday = date === todayStr();
@@ -193,7 +200,7 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
       </div>
       {/* Hour slots */}
       <div>
-        {HOURS.map(hour => {
+        {visibleHours.map(hour => {
           const slot = availability?.[hour];
           const membersFree = BAND_MEMBERS.filter(m => memberAvailability[date]?.[m.id]);
           const allFree = membersFree.length === BAND_MEMBERS.length;
@@ -209,6 +216,7 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
                 height: 44,
                 borderBottom: "0.5px solid var(--color-border-tertiary)",
                 padding: "4px 6px",
+                boxSizing: "border-box",
                 cursor: slot && hasConsecutive(hour) ? "pointer" : "default",
                 background: hoverSet.has(hour)
                   ? (STUDIO_COLORS[availability[hour]?.best?.studioNum] || "#888") + "22"
@@ -227,7 +235,7 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
                 }} />
               ) : slot ? (
                 <>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <span style={{
                       width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
                       background: STUDIO_COLORS[slot.best.studioNum],
@@ -236,11 +244,8 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
                       fontSize: 10, fontWeight: 500,
                       color: STUDIO_COLORS[slot.best.studioNum],
                     }}>
-                      S{slot.best.studioNum}
+                      {slot.best.studioNum} – £{slot.best.price}
                     </span>
-                  </div>
-                  <div style={{ fontSize: 9, color: "var(--color-text-secondary)" }}>
-                    £{slot.best.price}
                   </div>
                   {highlight && (
                     <div style={{
@@ -364,6 +369,8 @@ export default function AvailabilityView() {
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [whatsappMsg, setWhatsappMsg] = useState(null);
   const [error, setError] = useState(null);
+  const [showExtended, setShowExtended] = useState(false);
+  const visibleHours = showExtended ? ALL_HOURS : DEFAULT_HOURS;
   const scrollRef = useRef(null);
   const loadDates = useCallback(async (newDates) => {
     // Add only dates not already loaded
@@ -428,11 +435,14 @@ export default function AvailabilityView() {
     setWhatsappMsg({ text: msg, url });
     setSelectedSlot(null);
   };
-  // Initial load
+  // Initial load — start from most recent Monday (or today if Monday)
   useEffect(() => {
     if (dates.length === 0) {
       const today = todayStr();
-      const next7 = Array.from({ length: 7 }, (_, i) => addDays(today, i));
+      const dayOfWeek = new Date(today + "T12:00:00").getDay(); // 0=Sun, 1=Mon...
+      const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const monday = addDays(today, -daysSinceMonday);
+      const next7 = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
       loadDates(next7);
     }
   }, []);
@@ -480,16 +490,6 @@ export default function AvailabilityView() {
           >+7 days</button>
         </div>
       </div>
-      {/* Studio legend */}
-      <div style={{
-        padding: "8px 16px",
-        borderBottom: "0.5px solid var(--color-border-tertiary)",
-        display: "flex", gap: 6, flexWrap: "wrap", flexShrink: 0,
-      }}>
-        {STUDIO_PREFERENCE.map((s, i) => (
-          <StudioBadge key={s.number} num={s.number} label={`S${s.number}${i === 0 ? " ★" : ""}`} />
-        ))}
-      </div>
       {/* Time axis label + scrollable calendar */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {/* Fixed hour axis */}
@@ -498,14 +498,15 @@ export default function AvailabilityView() {
           borderRight: "0.5px solid var(--color-border-tertiary)",
           paddingTop: 111, // aligns with day header height
         }}>
-          {HOURS.map(h => (
+          {visibleHours.map(h => (
             <div key={h} style={{
               height: 44,
               borderBottom: "0.5px solid var(--color-border-tertiary)",
-              display: "flex", alignItems: "center", justifyContent: "flex-end",              
-              padding: "4px 6px",
+              display: "flex", alignItems: "center", justifyContent: "flex-end",
+              paddingRight: 8,
               fontSize: 10,
               color: "var(--color-text-secondary)",
+              boxSizing: "border-box",
             }}>
               {String(h).padStart(2, "0")}
             </div>
@@ -540,10 +541,30 @@ export default function AvailabilityView() {
                 myId={1}
                 onToggleMember={handleToggleMember}
                 onSlotClick={setSelectedSlot}
+                visibleHours={visibleHours}
               />
             ))
           )}
         </div>
+      </div>
+      {/* Extended hours toggle */}
+      <div style={{
+        padding: "8px 16px",
+        borderTop: "0.5px solid var(--color-border-tertiary)",
+        flexShrink: 0,
+      }}>
+        <label style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          fontSize: 12, color: "var(--color-text-secondary)", cursor: "pointer",
+        }}>
+          <input
+            type="checkbox"
+            checked={showExtended}
+            onChange={e => setShowExtended(e.target.checked)}
+            style={{ margin: 0 }}
+          />
+          Show 8am–8pm
+        </label>
       </div>
       {/* Error banner */}
       {error && (
