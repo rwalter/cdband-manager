@@ -175,7 +175,7 @@ export default function App() {
     }
   };
   return (
-    <div style={{ maxWidth: 480, margin: "0 auto", fontFamily: "var(--font-sans)", paddingBottom: 80 }}>
+    <div style={{ margin: "0 auto", fontFamily: "var(--font-sans)", paddingBottom: 80 }}>
       <div style={{
         padding: "18px 20px 14px",
         borderBottom: "0.5px solid var(--color-border-tertiary)",
@@ -201,7 +201,7 @@ export default function App() {
       </div>
       <div style={{
         position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
-        width: "100%", maxWidth: 480,
+        width: "100%",
         background: "var(--color-background-primary)",
         borderTop: "0.5px solid var(--color-border-tertiary)",
         display: "flex",

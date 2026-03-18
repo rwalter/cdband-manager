@@ -26,8 +26,8 @@ const BAND_MEMBERS = [
   { id: 4, name: "Morgan", initials: "MO", color: "#378ADD" },
   { id: 5, name: "Riley",  initials: "RI", color: "#EF9F27" },
 ];
-// Hours to display (8am–11pm)
-const HOURS = Array.from({ length: 16 }, (_, i) => i + 8);
+// Hours to display (8am–7pm)
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 8);
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 const formatDate = (d) =>
   new Date(d).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -130,7 +130,7 @@ function DayColumn({ date, availability, loading, memberAvailability, myId, onTo
   const isToday = date === todayStr();
   return (
     <div style={{
-      minWidth: 120, width: 120, flexShrink: 0,
+      minWidth: 120, flex: 1, flexShrink: 0,
       borderRight: "0.5px solid var(--color-border-tertiary)",
       opacity: loading ? 0.4 : 1,
       transition: "opacity 0.3s",

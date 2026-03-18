@@ -15,6 +15,19 @@
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
+  --color-background-primary: var(--bg);
+  --color-background-secondary: color-mix(in srgb, var(--bg), var(--text) 6%);
+  --color-background-info: color-mix(in srgb, var(--accent-bg), transparent 50%);
+  --color-background-danger: #fef2f2;
+  --color-text-primary: var(--text-h);
+  --color-text-secondary: var(--text);
+  --color-text-info: var(--accent);
+  --color-text-danger: #dc2626;
+  --color-border-tertiary: var(--border);
+  --color-border-secondary: color-mix(in srgb, var(--border), var(--text) 20%);
+  --color-border-danger: #fecaca;
+  --font-sans: var(--sans);
+
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light dark;
@@ -43,6 +56,9 @@
     --social-bg: rgba(47, 48, 58, 0.5);
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+    --color-background-danger: #451a1a;
+    --color-text-danger: #f87171;
+    --color-border-danger: #7f1d1d;
   }
 
   #social .button-icon {
@@ -55,11 +71,9 @@ body {
 }
 
 #root {
-  width: 1126px;
   max-width: 100%;
   margin: 0 auto;
   text-align: center;
-  border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;
   flex-direction: column;
