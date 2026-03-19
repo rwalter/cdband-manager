@@ -408,14 +408,21 @@ function NoteButton({ myNote, noteCount, onSave, onDelete }) {
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         title={myNote ? `Your note: ${myNote}` : "Add note"}
         style={{
-          background: "none", border: "none", cursor: "pointer",
-          padding: 2, display: "flex", alignItems: "center",
-          borderRadius: 4,
-          opacity: hasAnyNotes ? 1 : 0.5,
+          background: hasAnyNotes ? "#1D9E7518" : "var(--color-background-secondary)",
+          border: hasAnyNotes ? "1px solid #1D9E7544" : "1px dashed var(--color-border-tertiary)",
+          cursor: "pointer",
+          padding: "2px 5px", display: "flex", alignItems: "center", gap: 3,
+          borderRadius: 10,
           WebkitTapHighlightColor: "transparent",
         }}
       >
-        <NoteIcon filled={hasAnyNotes} size={13} color={hasAnyNotes ? "#1D9E75" : "var(--color-text-secondary)"} />
+        <NoteIcon filled={hasAnyNotes} size={11} color={hasAnyNotes ? "#1D9E75" : "var(--color-text-secondary)"} />
+        <span style={{
+          fontSize: 8, fontWeight: 600,
+          color: hasAnyNotes ? "#1D9E75" : "var(--color-text-secondary)",
+        }}>
+          {hasAnyNotes ? noteCount : "+"}
+        </span>
       </button>
       {open && (
         <NotePopover
@@ -603,7 +610,13 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
               </div>
               {/* Note previews — show all users' notes */}
               {noteEntries.length > 0 && (
-                <div style={{ marginTop: 3, display: "flex", flexDirection: "column", gap: 2 }}>
+                <div style={{
+                  marginTop: 4, display: "flex", flexDirection: "column", gap: 3,
+                  background: "#1D9E750A",
+                  border: "1px solid #1D9E7522",
+                  borderRadius: 5,
+                  padding: "4px 6px",
+                }}>
                   {noteEntries.map(([memberId, noteText]) => {
                     const member = BAND_MEMBERS.find(m => String(m.id) === String(memberId));
                     if (!member) return null;
@@ -613,20 +626,22 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
                         title={`${member.name}: ${noteText}`}
                         style={{
                           fontSize: 9,
-                          color: "var(--color-text-secondary)",
+                          color: "var(--color-text-primary)",
                           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                          fontStyle: "italic",
                           display: "flex", alignItems: "center", gap: 3,
                         }}
                       >
                         <span style={{
-                          fontWeight: 600, fontStyle: "normal",
-                          color: member.color,
+                          fontWeight: 700, fontSize: 8,
+                          color: "#fff",
+                          background: member.color,
+                          borderRadius: 3,
+                          padding: "1px 3px",
                           flexShrink: 0,
                         }}>
                           {member.initials}
                         </span>
-                        {noteText}
+                        <span style={{ fontStyle: "italic", opacity: 0.85 }}>{noteText}</span>
                       </div>
                     );
                   })}
