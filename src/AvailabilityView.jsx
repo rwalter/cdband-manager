@@ -467,7 +467,7 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
           return (
             <div
               key={hour}
-              onPointerEnter={(e) => { if (e.pointerType === "mouse" && (isRangeActiveHere || slot)) setHoveredHour(hour); }}
+              onPointerEnter={(e) => { if (e.pointerType === "mouse") setHoveredHour(hour); }}
               onPointerLeave={() => setHoveredHour(null)}
               style={{
                 height: 44,
@@ -496,6 +496,8 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
                   touchAction: "manipulation",
                   background: showRangeHighlight
                     ? rangeColor + (inRangePreview ? "30" : "18")
+                    : hoveredHour === hour
+                    ? "var(--color-background-secondary)"
                     : "transparent",
                   border: "none", padding: 0,
                   borderRight: "0.5px solid var(--color-border-tertiary)",
