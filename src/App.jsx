@@ -236,7 +236,7 @@ export default function App() {
     }
   };
   return (
-    <div style={{ margin: "0 auto", maxWidth: 600, width: "100%", fontFamily: "var(--font-sans)", paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}>
+    <div style={{ margin: "0 auto", fontFamily: "var(--font-sans)", paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}>
       <div style={{
         padding: "18px 20px 14px",
         borderBottom: "0.5px solid var(--color-border-tertiary)",
@@ -272,8 +272,7 @@ export default function App() {
         {renderView()}
       </div>
       <div style={{
-        position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
-        width: "100%", maxWidth: 600,
+        position: "fixed", bottom: 0, left: 0, right: 0,
         background: "var(--color-background-primary)",
         borderTop: "0.5px solid var(--color-border-tertiary)",
         display: "flex",
