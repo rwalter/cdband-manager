@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 const DECK_SLUG = "london-camden";
 const DEFAULT_DURATION = 3;
+const MIN_BOOKABLE_HOURS = 3; // Hide slots in contiguous blocks shorter than this
 // Preferred studios in order — Pro only
 const STUDIO_PREFERENCE = [
   { number: "16", label: "Studio 16", rank: 1 },
@@ -301,6 +302,26 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
     common.sort((a, b) => a.rank - b.rank);
     return common[0] || null;
   };
+  // Filter out hours that belong to contiguous available blocks shorter than
+  // MIN_BOOKABLE_HOURS — isolated 1–2 hour slots aren't useful for booking.
+  const bookableHours = (() => {
+    const set = new Set();
+    if (!availability) return set;
+    // Scan all hours to find contiguous runs of availability
+    const sorted = ALL_HOURS.filter(h => availability[h]);
+    let runStart = 0;
+    for (let i = 0; i <= sorted.length; i++) {
+      // End of a run: gap or end of array
+      if (i === sorted.length || sorted[i] !== sorted[i - 1] + 1) {
+        const runLen = i - runStart;
+        if (runLen >= MIN_BOOKABLE_HOURS) {
+          for (let j = runStart; j < i; j++) set.add(sorted[j]);
+        }
+        runStart = i;
+      }
+    }
+    return set;
+  })();
   // Which hours should be highlighted by the hover
   const hoverSet = new Set();
   const hoverStudio = hoveredHour !== null && hasConsecutive(hoveredHour)
@@ -420,7 +441,7 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
       {/* Hour slots */}
       <div>
         {visibleHours.map(hour => {
-          const slot = availability?.[hour];
+          const slot = bookableHours.has(hour) ? availability?.[hour] : null;
           const membersFree = BAND_MEMBERS.filter(m => isMemberFree(memberAvailability, date, m.id, hour));
           const highlight = slot && membersFree.length >= 4;
           // When hovered, show the common studio instead of the per-hour best
