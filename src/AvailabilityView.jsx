@@ -270,7 +270,7 @@ const StudioBadge = ({ num, label }) => {
   );
 };
 // ─── DAY COLUMN ──────────────────────────────────────────────────────────────
-function DayColumn({ date, availability, loading, memberAvailability, currentUser, onToggleDayStatus, onToggleSlot, onSlotClick, onDayReasonChange, visibleHours, allowStudioSwitch, duration, headerRef }) {
+function DayColumn({ date, availability, loading, memberAvailability, currentUser, onToggleDayStatus, onToggleSlot, onSlotClick, onDayReasonChange, visibleHours, allowStudioSwitch, duration, headerRef, rangeSelect, onAvailabilityClick }) {
   const [hoveredHour, setHoveredHour] = useState(null);
   const weekend = isWeekend(date);
   const isToday = date === todayStr();
@@ -322,9 +322,20 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
     }
     return set;
   })();
-  // Which hours should be highlighted by the hover
+  // Range selection state for this column
+  const isRangeActiveHere = rangeSelect && rangeSelect.date === date;
+  let rangeMin = null, rangeMax = null;
+  if (isRangeActiveHere) {
+    if (hoveredHour !== null) {
+      rangeMin = Math.min(rangeSelect.startHour, hoveredHour);
+      rangeMax = Math.max(rangeSelect.startHour, hoveredHour);
+    } else {
+      rangeMin = rangeMax = rangeSelect.startHour;
+    }
+  }
+  // Which hours should be highlighted by the studio hover (only when no range active)
   const hoverSet = new Set();
-  const hoverStudio = hoveredHour !== null && hasConsecutive(hoveredHour)
+  const hoverStudio = !isRangeActiveHere && hoveredHour !== null && hasConsecutive(hoveredHour)
     ? bestCommonStudio(hoveredHour) : null;
   if (hoverStudio) {
     for (let i = 0; i < duration; i++) hoverSet.add(hoveredHour + i);
@@ -449,41 +460,46 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
           const displayStudio = isHovered && hoverStudio ? hoverStudio : slot?.best;
           const displayColor = STUDIO_COLORS[displayStudio?.studioNum] || "#888";
           const mySlotStatus = getMemberSlotStatus(memberAvailability, date, currentUser.id, hour);
+          const inRangePreview = rangeMin !== null && hour >= rangeMin && hour <= rangeMax;
+          const isRangeStart = isRangeActiveHere && hour === rangeSelect.startHour;
+          const showRangeHighlight = inRangePreview || isRangeStart;
+          const rangeColor = rangeSelect?.action === "available" ? "#1D9E75" : "#EF4444";
           return (
             <div
               key={hour}
-              onPointerEnter={(e) => { if (e.pointerType === "mouse" && slot) setHoveredHour(hour); }}
+              onPointerEnter={(e) => { if (e.pointerType === "mouse" && (isRangeActiveHere || slot)) setHoveredHour(hour); }}
               onPointerLeave={() => setHoveredHour(null)}
               style={{
                 height: 44,
                 borderBottom: "0.5px solid var(--color-border-tertiary)",
-                padding: "4px 6px",
+                padding: "0",
                 boxSizing: "border-box",
-                display: "flex", alignItems: "center",
+                display: "flex", alignItems: "stretch",
                 cursor: "default",
-                background: isHovered
-                  ? displayColor + "22"
-                  : highlight
-                  ? STUDIO_COLORS[slot.best.studioNum] + "12"
-                  : "transparent",
-                transition: "background 0.15s",
                 position: "relative",
               }}
             >
-              {/* My availability toggle — proper button, no nesting issues */}
+              {/* My availability zone — separate clickable area */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onToggleSlot(date, hour);
+                  onAvailabilityClick(date, hour);
                 }}
-                title={`Your status: ${mySlotStatus} — tap to change`}
+                title={isRangeActiveHere
+                  ? `Click to ${rangeSelect.action === "available" ? "mark" : "clear"} availability ${rangeSelect.startHour}:00–${hour >= rangeSelect.startHour ? hour + 1 : rangeSelect.startHour + 1}:00`
+                  : `Your status: ${mySlotStatus} — click to start range selection`}
                 style={{
-                  width: 36, height: 36, flexShrink: 0,
-                  marginRight: 2, cursor: "pointer",
+                  width: 40, flexShrink: 0,
+                  cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   WebkitTapHighlightColor: "transparent",
                   touchAction: "manipulation",
-                  background: "none", border: "none", padding: 0,
+                  background: showRangeHighlight
+                    ? rangeColor + (inRangePreview ? "30" : "18")
+                    : "transparent",
+                  border: "none", padding: 0,
+                  borderRight: "0.5px solid var(--color-border-tertiary)",
+                  transition: "background 0.1s",
                 }}
               >
                 <div style={{
@@ -506,23 +522,38 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
                   )}
                 </div>
               </button>
+              {/* Studio info zone — separate clickable area */}
               {loading ? (
                 <div style={{
-                  height: 8, borderRadius: 4, width: "60%",
-                  background: "var(--color-background-secondary)",
-                }} />
+                  flex: 1, display: "flex", alignItems: "center", padding: "4px 6px",
+                  background: isHovered ? displayColor + "22"
+                    : highlight ? STUDIO_COLORS[slot?.best?.studioNum] + "12" : "transparent",
+                  transition: "background 0.15s",
+                }}>
+                  <div style={{
+                    height: 8, borderRadius: 4, width: "60%",
+                    background: "var(--color-background-secondary)",
+                  }} />
+                </div>
               ) : slot ? (
                 <button
                   disabled={!hasConsecutive(hour)}
                   style={{
                     flex: 1, cursor: hasConsecutive(hour) ? "pointer" : "default",
-                    background: "none", border: "none", padding: "4px 0",
+                    background: isHovered
+                      ? displayColor + "22"
+                      : highlight
+                      ? STUDIO_COLORS[slot.best.studioNum] + "12"
+                      : "transparent",
+                    border: "none", padding: "4px 6px",
                     touchAction: "manipulation",
                     WebkitTapHighlightColor: "transparent",
                     textAlign: "left", minHeight: 36,
                     display: "flex", alignItems: "center",
+                    transition: "background 0.15s",
                   }}
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     if (!slot || !hasConsecutive(hour)) return;
                     const common = bestCommonStudio(hour);
                     const overriddenSlot = common ? { ...slot, best: common } : slot;
@@ -544,10 +575,14 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
                 </button>
               ) : (
                 <div style={{
-                  height: 4, borderRadius: 2, width: "30%",
-                  background: "var(--color-border-tertiary)",
-                  opacity: 0.4,
-                }} />
+                  flex: 1, display: "flex", alignItems: "center", padding: "4px 6px",
+                }}>
+                  <div style={{
+                    height: 4, borderRadius: 2, width: "30%",
+                    background: "var(--color-border-tertiary)",
+                    opacity: 0.4,
+                  }} />
+                </div>
               )}
               {/* Member count indicator */}
               {!loading && slot && membersFree.length > 0 && (
@@ -692,6 +727,7 @@ export default function AvailabilityView({ currentUser }) {
     } catch { return {}; }
   });
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [rangeSelect, setRangeSelect] = useState(null); // { date, startHour, action: "available"|"unavailable" }
   const [whatsappMsg, setWhatsappMsg] = useState(null);
   const [error, setError] = useState(null);
   const [showExtended, setShowExtended] = useState(false);
@@ -726,6 +762,15 @@ export default function AvailabilityView({ currentUser }) {
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 30000);
     return () => clearInterval(id);
+  }, []);
+
+  // Cancel range selection on Escape
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === "Escape") setRangeSelect(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, []);
 
   const loadDates = useCallback(async (newDates, { force = false } = {}) => {
@@ -885,6 +930,54 @@ export default function AvailabilityView({ currentUser }) {
     }
   };
 
+  // Range-based availability selection: first click starts, second click completes
+  const handleAvailabilityClick = (date, hour) => {
+    if (rangeSelect && rangeSelect.date === date) {
+      // Complete the range
+      const start = Math.min(rangeSelect.startHour, hour);
+      const end = Math.max(rangeSelect.startHour, hour);
+      const action = rangeSelect.action;
+      const myId = currentUser.id;
+
+      setMemberAvailability(prev => {
+        const entry = prev[date]?.[myId] || {};
+        const dayStatus = entry.dayStatus || "unavailable";
+        const slots = { ...(entry.slots || {}) };
+
+        for (let h = start; h <= end; h++) {
+          if (action === "available") {
+            if (dayStatus === "available") {
+              delete slots[h]; // day status already covers it
+            } else {
+              slots[h] = { status: "available" };
+            }
+          } else {
+            // Marking unavailable
+            if (dayStatus === "unavailable") {
+              delete slots[h]; // day status already covers it
+            } else {
+              slots[h] = { status: "unavailable" };
+            }
+          }
+        }
+
+        return {
+          ...prev,
+          [date]: {
+            ...(prev[date] || {}),
+            [myId]: { ...entry, dayStatus, slots },
+          },
+        };
+      });
+      setRangeSelect(null);
+    } else {
+      // Start new range (cancel any existing range on a different date)
+      const mySlotStatus = getMemberSlotStatus(memberAvailability, date, currentUser.id, hour);
+      const action = mySlotStatus === "available" ? "unavailable" : "available";
+      setRangeSelect({ date, startHour: hour, action });
+    }
+  };
+
   const handleWhatsApp = ({ date, hour, slot, membersFree }) => {
     const timeStr = `${String(hour).padStart(2, "0")}:00–${String(hour + duration).padStart(2, "0")}:00`;
     const attending = membersFree.map(m => m.name).join(", ");
@@ -995,6 +1088,27 @@ export default function AvailabilityView({ currentUser }) {
           >+7 days</button>
         </div>
       </div>
+      {/* Range selection banner */}
+      {rangeSelect && (
+        <div style={{
+          padding: "6px 12px",
+          background: rangeSelect.action === "available" ? "#1D9E7518" : "#EF444418",
+          borderBottom: `1px solid ${rangeSelect.action === "available" ? "#1D9E7544" : "#EF444444"}`,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          fontSize: 12, flexShrink: 0,
+        }}>
+          <span style={{ color: rangeSelect.action === "available" ? "#1D9E75" : "#EF4444", fontWeight: 500 }}>
+            {rangeSelect.action === "available" ? "Marking available" : "Clearing availability"} from {rangeSelect.startHour}:00 — click end hour
+          </span>
+          <button
+            onClick={() => setRangeSelect(null)}
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              color: "var(--color-text-secondary)", fontSize: 14, padding: "2px 6px",
+            }}
+          >Cancel</button>
+        </div>
+      )}
       {/* Time axis label + scrollable calendar */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {/* Fixed hour axis */}
@@ -1053,6 +1167,8 @@ export default function AvailabilityView({ currentUser }) {
                 allowStudioSwitch={allowStudioSwitch}
                 duration={duration}
                 headerRef={i === 0 ? dayHeaderRef : undefined}
+                rangeSelect={rangeSelect}
+                onAvailabilityClick={handleAvailabilityClick}
               />
             ))
           )}
