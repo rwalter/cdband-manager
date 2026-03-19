@@ -70,11 +70,24 @@ body {
   margin: 0;
   overscroll-behavior: none;
   -webkit-text-size-adjust: 100%;
+  /* Prevent pull-to-refresh and overscroll on mobile */
+  overscroll-behavior-y: contain;
 }
 
 /* Prevent double-tap zoom on interactive elements */
 button, a, [role="button"], label, select, input {
   touch-action: manipulation;
+}
+
+/* Prevent text selection on interactive UI elements during touch */
+button, [role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Ensure proper box-sizing everywhere */
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
 #root {

@@ -61,7 +61,7 @@ function Dashboard({ rehearsals, members }) {
   const pendingCount = rehearsals.filter(r => !r.confirmed).length;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 10 }}>
         {[
           { label: "Next rehearsal", value: next ? formatShortDate(next.date) : "TBC", sub: next?.venue },
           { label: "Confirmed", value: confirmedCount, sub: `of ${rehearsals.length} total` },
@@ -78,12 +78,12 @@ function Dashboard({ rehearsals, members }) {
         <>
           <SectionTitle>Next up — {formatDate(next.date)} at {next.time}</SectionTitle>
           <Card>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+            <div style={{ marginBottom: 12 }}>
               <div>
                 <div style={{ fontWeight: 500, fontSize: 15, color: "var(--color-text-primary)" }}>{next.venue}</div>
                 {next.notes && <div style={{ fontSize: 13, color: "var(--color-text-secondary)", marginTop: 2 }}>{next.notes}</div>}
               </div>
-              <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                 {next.attendees.map(id => <Avatar key={id} member={members.find(m => m.id === id)} size={28} />)}
               </div>
             </div>
@@ -110,13 +110,13 @@ function RehearsalsView({ rehearsals, members }) {
   const past = rehearsals.filter(r => new Date(r.date) < new Date()).sort((a,b) => b.date.localeCompare(a.date));
   const RehearsalCard = ({ r }) => (
     <Card>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-        <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
+        <div style={{ minWidth: 0, flex: "1 1 auto" }}>
           <div style={{ fontWeight: 500, fontSize: 15, color: "var(--color-text-primary)" }}>{formatDate(r.date)}</div>
           <div style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>{r.time} · {r.venue}</div>
         </div>
         <span style={{
-          fontSize: 11, padding: "2px 8px", borderRadius: 20, fontWeight: 500,
+          fontSize: 11, padding: "2px 8px", borderRadius: 20, fontWeight: 500, flexShrink: 0,
           background: r.confirmed ? "#E1F5EE" : "#FAEEDA",
           color: r.confirmed ? "#0F6E56" : "#854F0B",
         }}>{r.confirmed ? "Confirmed" : "Pending"}</span>
@@ -236,7 +236,7 @@ export default function App() {
     }
   };
   return (
-    <div style={{ margin: "0 auto", fontFamily: "var(--font-sans)", paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}>
+    <div style={{ margin: "0 auto", maxWidth: 600, width: "100%", fontFamily: "var(--font-sans)", paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}>
       <div style={{
         padding: "18px 20px 14px",
         borderBottom: "0.5px solid var(--color-border-tertiary)",
@@ -272,7 +272,8 @@ export default function App() {
         {renderView()}
       </div>
       <div style={{
-        position: "fixed", bottom: 0, left: 0, right: 0,
+        position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+        width: "100%", maxWidth: 600,
         background: "var(--color-background-primary)",
         borderTop: "0.5px solid var(--color-border-tertiary)",
         display: "flex",

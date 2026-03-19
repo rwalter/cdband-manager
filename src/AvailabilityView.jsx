@@ -340,30 +340,50 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
         }}>
           {new Date(date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
         </div>
-        {/* Member availability indicators — only current user is clickable */}
-        <div style={{ display: "flex", gap: 1, marginTop: 7, flexWrap: "wrap" }}>
-          {BAND_MEMBERS.map(m => {
-            const isMe = m.id === currentUser.id;
+        {/* Member availability indicators — current user shown separately as tap target */}
+        <div style={{ display: "flex", gap: 2, marginTop: 7, flexWrap: "wrap", alignItems: "center" }}>
+          {BAND_MEMBERS.filter(m => m.id !== currentUser.id).map(m => {
             const dayStatus = getMemberDayStatus(memberAvailability, date, m.id);
             return (
               <div
                 key={m.id}
-                title={isMe
-                  ? `${m.name} (you) — ${dayStatus} — tap to change`
-                  : `${m.name} — ${dayStatus}`}
-                onClick={isMe ? () => onToggleDayStatus(date) : undefined}
-                style={{
-                  cursor: isMe ? "pointer" : "default",
-                  padding: isMe ? 3 : 1,
-                  borderRadius: "50%",
-                  WebkitTapHighlightColor: "transparent",
-                }}
+                title={`${m.name} — ${dayStatus}`}
+                style={{ padding: 1, borderRadius: "50%" }}
               >
-                <Avatar member={m} size={20} status={dayStatus} />
+                <Avatar member={m} size={18} status={dayStatus} />
               </div>
             );
           })}
         </div>
+        {/* Current user day toggle — separate, larger tap target */}
+        <button
+          onClick={() => onToggleDayStatus(date)}
+          title={`${currentUser.name} (you) — ${myDayStatus} — tap to change`}
+          style={{
+            display: "flex", alignItems: "center", gap: 5,
+            marginTop: 5, padding: "4px 8px 4px 4px",
+            minHeight: 32,
+            background: myDayStatus === "available" ? currentUser.color + "14"
+              : myDayStatus === "maybe" ? MAYBE_COLOR + "14"
+              : "var(--color-background-secondary)",
+            border: myDayStatus === "available" ? `1px solid ${currentUser.color}44`
+              : myDayStatus === "maybe" ? `1px dashed ${MAYBE_COLOR}44`
+              : "1px solid var(--color-border-tertiary)",
+            borderRadius: 6, cursor: "pointer",
+            WebkitTapHighlightColor: "transparent",
+            touchAction: "manipulation",
+          }}
+        >
+          <Avatar member={currentUser} size={18} status={myDayStatus} />
+          <span style={{
+            fontSize: 9, fontWeight: 500,
+            color: myDayStatus === "available" ? currentUser.color
+              : myDayStatus === "maybe" ? MAYBE_COLOR
+              : "var(--color-text-secondary)",
+          }}>
+            {myDayStatus === "available" ? "Free" : myDayStatus === "maybe" ? "Maybe" : "Off"}
+          </span>
+        </button>
         {/* Day-level status label for current user — always rendered for alignment */}
         {(() => {
           const label = getAvailabilityLabel(memberAvailability, date, currentUser.id, visibleHours);
@@ -429,18 +449,20 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
                 position: "relative",
               }}
             >
-              {/* My availability toggle dot — oversized tap target */}
-              <div
+              {/* My availability toggle — proper button, no nesting issues */}
+              <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleSlot(date, hour);
                 }}
                 title={`Your status: ${mySlotStatus} — tap to change`}
                 style={{
-                  width: 32, height: 32, flexShrink: 0,
+                  width: 36, height: 36, flexShrink: 0,
                   marginRight: 2, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   WebkitTapHighlightColor: "transparent",
+                  touchAction: "manipulation",
+                  background: "none", border: "none", padding: 0,
                 }}
               >
                 <div style={{
@@ -462,15 +484,23 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
                     <span style={{ fontSize: 9, color: MAYBE_COLOR, fontWeight: 700 }}>?</span>
                   )}
                 </div>
-              </div>
+              </button>
               {loading ? (
                 <div style={{
                   height: 8, borderRadius: 4, width: "60%",
                   background: "var(--color-background-secondary)",
                 }} />
               ) : slot ? (
-                <div
-                  style={{ flex: 1, cursor: hasConsecutive(hour) ? "pointer" : "default" }}
+                <button
+                  disabled={!hasConsecutive(hour)}
+                  style={{
+                    flex: 1, cursor: hasConsecutive(hour) ? "pointer" : "default",
+                    background: "none", border: "none", padding: "4px 0",
+                    touchAction: "manipulation",
+                    WebkitTapHighlightColor: "transparent",
+                    textAlign: "left", minHeight: 36,
+                    display: "flex", alignItems: "center",
+                  }}
                   onClick={() => {
                     if (!slot || !hasConsecutive(hour)) return;
                     const common = bestCommonStudio(hour);
@@ -478,7 +508,7 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
                     onSlotClick({ date, hour, slot: overriddenSlot, membersFree });
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, pointerEvents: "none" }}>
                     <span style={{
                       width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
                       background: displayColor,
@@ -490,7 +520,7 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
                       {displayStudio.studioNum} – £{displayStudio.price}
                     </span>
                   </div>
-                </div>
+                </button>
               ) : (
                 <div style={{
                   height: 4, borderRadius: 2, width: "30%",
@@ -939,7 +969,7 @@ export default function AvailabilityView({ currentUser }) {
         <div style={{
           width: 38, flexShrink: 0,
           borderRight: "0.5px solid var(--color-border-tertiary)",
-          paddingTop: 111, // aligns with day header height
+          paddingTop: 135, // aligns with day header height (header + avatars + toggle button)
         }}>
           {visibleHours.map(h => (
             <div key={h} style={{
