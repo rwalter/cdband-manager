@@ -359,17 +359,17 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
             );
           })}
         </div>
-        {/* Day-level status label for current user */}
+        {/* Day-level status label for current user — always rendered for alignment */}
         {(() => {
           const label = getAvailabilityLabel(memberAvailability, date, currentUser.id, visibleHours);
-          if (!label) return null;
           return (
             <div style={{
               fontSize: 9, marginTop: 4,
-              color: label.color,
+              color: label ? label.color : "var(--color-text-secondary)",
               fontWeight: 500,
+              minHeight: 14,
             }}>
-              {label.text}
+              {label ? label.text : "Not set"}
             </div>
           );
         })()}
