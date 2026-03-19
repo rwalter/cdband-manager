@@ -1088,23 +1088,25 @@ export default function AvailabilityView({ currentUser }) {
           >+7 days</button>
         </div>
       </div>
-      {/* Range selection banner */}
+      {/* Range selection banner — overlays content at higher z-index */}
       {rangeSelect && (
         <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, zIndex: 10,
           padding: "6px 12px",
-          background: rangeSelect.action === "available" ? "#1D9E7518" : "#EF444418",
-          borderBottom: `1px solid ${rangeSelect.action === "available" ? "#1D9E7544" : "#EF444444"}`,
+          background: rangeSelect.action === "available" ? "#1D9E75ee" : "#EF4444ee",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          fontSize: 12, flexShrink: 0,
+          fontSize: 12,
+          backdropFilter: "blur(4px)",
+          WebkitBackdropFilter: "blur(4px)",
         }}>
-          <span style={{ color: rangeSelect.action === "available" ? "#1D9E75" : "#EF4444", fontWeight: 500 }}>
+          <span style={{ color: "#fff", fontWeight: 500 }}>
             {rangeSelect.action === "available" ? "Marking available" : "Clearing availability"} from {rangeSelect.startHour}:00 — click end hour
           </span>
           <button
             onClick={() => setRangeSelect(null)}
             style={{
-              background: "none", border: "none", cursor: "pointer",
-              color: "var(--color-text-secondary)", fontSize: 14, padding: "2px 6px",
+              background: "rgba(255,255,255,0.2)", border: "none", cursor: "pointer",
+              color: "#fff", fontSize: 12, padding: "2px 8px", borderRadius: 4,
             }}
           >Cancel</button>
         </div>
