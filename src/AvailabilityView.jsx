@@ -399,26 +399,34 @@ function NotePopover({ note, onSave, onDelete, onClose }) {
 }
 
 // ─── NOTE BUTTON ────────────────────────────────────────────────────────────
-function NoteButton({ note, onSave, onDelete }) {
+function NoteButton({ myNote, noteCount, onSave, onDelete }) {
   const [open, setOpen] = useState(false);
+  const hasAnyNotes = noteCount > 0;
   return (
     <div style={{ position: "relative", flexShrink: 0 }}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        title={note ? `Note: ${note}` : "Add note"}
+        title={myNote ? `Your note: ${myNote}` : "Add note"}
         style={{
-          background: "none", border: "none", cursor: "pointer",
-          padding: 2, display: "flex", alignItems: "center",
-          borderRadius: 4,
-          opacity: note ? 1 : 0.5,
+          background: hasAnyNotes ? "#1D9E7518" : "var(--color-background-secondary)",
+          border: hasAnyNotes ? "1px solid #1D9E7544" : "1px dashed var(--color-border-tertiary)",
+          cursor: "pointer",
+          padding: "2px 5px", display: "flex", alignItems: "center", gap: 3,
+          borderRadius: 10,
           WebkitTapHighlightColor: "transparent",
         }}
       >
-        <NoteIcon filled={!!note} size={13} color={note ? "#1D9E75" : "var(--color-text-secondary)"} />
+        <NoteIcon filled={hasAnyNotes} size={11} color={hasAnyNotes ? "#1D9E75" : "var(--color-text-secondary)"} />
+        <span style={{
+          fontSize: 8, fontWeight: 600,
+          color: hasAnyNotes ? "#1D9E75" : "var(--color-text-secondary)",
+        }}>
+          {hasAnyNotes ? noteCount : "+"}
+        </span>
       </button>
       {open && (
         <NotePopover
-          note={note}
+          note={myNote}
           onSave={onSave}
           onDelete={onDelete}
           onClose={() => setOpen(false)}
@@ -429,7 +437,7 @@ function NoteButton({ note, onSave, onDelete }) {
 }
 
 // ─── DAY COLUMN ──────────────────────────────────────────────────────────────
-function DayColumn({ date, availability, loading, memberAvailability, currentUser, onToggleDayStatus, onToggleSlot, onSlotClick, onDayReasonChange, visibleHours, allowStudioSwitch, duration, headerRef, rangeSelect, onAvailabilityClick, dailyNote, onSaveNote, onDeleteNote }) {
+function DayColumn({ date, availability, loading, memberAvailability, currentUser, onToggleDayStatus, onToggleSlot, onSlotClick, onDayReasonChange, visibleHours, allowStudioSwitch, duration, headerRef, rangeSelect, onAvailabilityClick, dailyNotes, onSaveNote, onDeleteNote }) {
   const [hoveredHour, setHoveredHour] = useState(null);
   const weekend = isWeekend(date);
   const isToday = date === todayStr();
@@ -578,39 +586,70 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
         {/* Day-level status label + note icon */}
         {(() => {
           const label = getAvailabilityLabel(memberAvailability, date, currentUser.id, visibleHours);
+          const myNote = dailyNotes?.[currentUser.id] || "";
+          const noteEntries = dailyNotes ? Object.entries(dailyNotes).filter(([, v]) => v) : [];
           return (
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              marginTop: 4, minHeight: 14,
-            }}>
+            <>
               <div style={{
-                fontSize: 9,
-                color: label ? label.color : "var(--color-text-secondary)",
-                fontWeight: 500,
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                marginTop: 4, minHeight: 14,
               }}>
-                {label ? label.text : "Not set"}
+                <div style={{
+                  fontSize: 9,
+                  color: label ? label.color : "var(--color-text-secondary)",
+                  fontWeight: 500,
+                }}>
+                  {label ? label.text : "Not set"}
+                </div>
+                <NoteButton
+                  myNote={myNote}
+                  noteCount={noteEntries.length}
+                  onSave={(text) => onSaveNote(date, text)}
+                  onDelete={() => onDeleteNote(date)}
+                />
               </div>
-              <NoteButton
-                note={dailyNote}
-                onSave={(text) => onSaveNote(date, text)}
-                onDelete={() => onDeleteNote(date)}
-              />
-            </div>
+              {/* Note previews — show all users' notes */}
+              {noteEntries.length > 0 && (
+                <div style={{
+                  marginTop: 4, display: "flex", flexDirection: "column", gap: 3,
+                  background: "#1D9E750A",
+                  border: "1px solid #1D9E7522",
+                  borderRadius: 5,
+                  padding: "4px 6px",
+                }}>
+                  {noteEntries.map(([memberId, noteText]) => {
+                    const member = BAND_MEMBERS.find(m => String(m.id) === String(memberId));
+                    if (!member) return null;
+                    return (
+                      <div
+                        key={memberId}
+                        title={`${member.name}: ${noteText}`}
+                        style={{
+                          fontSize: 9,
+                          color: "var(--color-text-primary)",
+                          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                          display: "flex", alignItems: "center", gap: 3,
+                        }}
+                      >
+                        <span style={{
+                          fontWeight: 700, fontSize: 8,
+                          color: "#fff",
+                          background: member.color,
+                          borderRadius: 3,
+                          padding: "1px 3px",
+                          flexShrink: 0,
+                        }}>
+                          {member.initials}
+                        </span>
+                        <span style={{ fontStyle: "italic", opacity: 0.85 }}>{noteText}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           );
         })()}
-        {/* Note preview */}
-        {dailyNote && (
-          <div style={{
-            fontSize: 9, marginTop: 3,
-            color: "var(--color-text-secondary)",
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            fontStyle: "italic",
-          }}
-            title={dailyNote}
-          >
-            {dailyNote}
-          </div>
-        )}
         {/* Inline note for day-level maybe */}
         {myDayStatus === "maybe" && (
           <input
@@ -1387,7 +1426,7 @@ export default function AvailabilityView({ currentUser }) {
                 headerRef={i === 0 ? dayHeaderRef : undefined}
                 rangeSelect={rangeSelect}
                 onAvailabilityClick={handleAvailabilityClick}
-                dailyNote={dailyNotes[date]?.[currentUser.id] || ""}
+                dailyNotes={dailyNotes[date] || {}}
                 onSaveNote={handleSaveNote}
                 onDeleteNote={handleDeleteNote}
               />
