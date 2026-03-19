@@ -269,8 +269,167 @@ const StudioBadge = ({ num, label }) => {
     </span>
   );
 };
+// ─── NOTE ICON SVG ──────────────────────────────────────────────────────────
+const NoteIcon = ({ filled, size = 14, color = "var(--color-text-secondary)" }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {filled ? (
+      <path d="M4 1C2.89543 1 2 1.89543 2 3V13C2 14.1046 2.89543 15 4 15H12C13.1046 15 14 14.1046 14 13V6L9 1H4Z" fill={color} fillOpacity="0.2" stroke={color} strokeWidth="1.2" strokeLinejoin="round" />
+    ) : (
+      <path d="M4 1C2.89543 1 2 1.89543 2 3V13C2 14.1046 2.89543 15 4 15H12C13.1046 15 14 14.1046 14 13V6L9 1H4Z" stroke={color} strokeWidth="1.2" strokeLinejoin="round" />
+    )}
+    {filled && <>
+      <line x1="5" y1="7" x2="11" y2="7" stroke={color} strokeWidth="1" strokeLinecap="round" />
+      <line x1="5" y1="9.5" x2="9" y2="9.5" stroke={color} strokeWidth="1" strokeLinecap="round" />
+    </>}
+    <path d="M9 1V6H14" stroke={color} strokeWidth="1.2" strokeLinejoin="round" />
+  </svg>
+);
+
+// ─── NOTE POPOVER ───────────────────────────────────────────────────────────
+function NotePopover({ note, onSave, onDelete, onClose }) {
+  const [text, setText] = useState(note || "");
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    // Focus the input on mount
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, []);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const handleSave = () => {
+    const trimmed = text.trim();
+    if (trimmed) {
+      onSave(trimmed);
+    } else {
+      onDelete();
+    }
+    onClose();
+  };
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed", inset: 0, zIndex: 40,
+          background: "transparent",
+        }}
+      />
+      {/* Popover */}
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          position: "absolute", top: "100%", left: 0, right: -8, zIndex: 41,
+          marginTop: 4,
+          background: "var(--color-background-primary)",
+          border: "0.5px solid var(--color-border-tertiary)",
+          borderRadius: 8,
+          padding: 8,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+          minWidth: 160,
+        }}
+      >
+        <textarea
+          ref={inputRef}
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSave();
+            }
+          }}
+          placeholder="Add a note for this day…"
+          rows={2}
+          style={{
+            width: "100%", boxSizing: "border-box",
+            fontSize: 11, padding: "6px 8px",
+            borderRadius: 6,
+            border: "0.5px solid var(--color-border-tertiary)",
+            background: "var(--color-background-secondary)",
+            color: "var(--color-text-primary)",
+            outline: "none", resize: "vertical",
+            fontFamily: "inherit",
+            lineHeight: 1.4,
+          }}
+        />
+        <div style={{ display: "flex", gap: 4, marginTop: 6, justifyContent: "flex-end" }}>
+          {note && (
+            <button
+              onClick={() => { onDelete(); onClose(); }}
+              style={{
+                fontSize: 10, padding: "3px 8px", borderRadius: 4,
+                background: "none", cursor: "pointer",
+                border: "0.5px solid var(--color-border-tertiary)",
+                color: "var(--color-text-secondary)",
+              }}
+            >Delete</button>
+          )}
+          <button
+            onClick={onClose}
+            style={{
+              fontSize: 10, padding: "3px 8px", borderRadius: 4,
+              background: "none", cursor: "pointer",
+              border: "0.5px solid var(--color-border-tertiary)",
+              color: "var(--color-text-secondary)",
+            }}
+          >Cancel</button>
+          <button
+            onClick={handleSave}
+            style={{
+              fontSize: 10, padding: "3px 8px", borderRadius: 4,
+              background: "#1D9E75", cursor: "pointer",
+              border: "none",
+              color: "#fff", fontWeight: 500,
+            }}
+          >Save</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── NOTE BUTTON ────────────────────────────────────────────────────────────
+function NoteButton({ note, onSave, onDelete }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: "relative", flexShrink: 0 }}>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        title={note ? `Note: ${note}` : "Add note"}
+        style={{
+          background: "none", border: "none", cursor: "pointer",
+          padding: 2, display: "flex", alignItems: "center",
+          borderRadius: 4,
+          opacity: note ? 1 : 0.5,
+          WebkitTapHighlightColor: "transparent",
+        }}
+      >
+        <NoteIcon filled={!!note} size={13} color={note ? "#1D9E75" : "var(--color-text-secondary)"} />
+      </button>
+      {open && (
+        <NotePopover
+          note={note}
+          onSave={onSave}
+          onDelete={onDelete}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── DAY COLUMN ──────────────────────────────────────────────────────────────
-function DayColumn({ date, availability, loading, memberAvailability, currentUser, onToggleDayStatus, onToggleSlot, onSlotClick, onDayReasonChange, visibleHours, allowStudioSwitch, duration, headerRef, rangeSelect, onAvailabilityClick }) {
+function DayColumn({ date, availability, loading, memberAvailability, currentUser, onToggleDayStatus, onToggleSlot, onSlotClick, onDayReasonChange, visibleHours, allowStudioSwitch, duration, headerRef, rangeSelect, onAvailabilityClick, dailyNote, onSaveNote, onDeleteNote }) {
   const [hoveredHour, setHoveredHour] = useState(null);
   const weekend = isWeekend(date);
   const isToday = date === todayStr();
@@ -416,20 +575,42 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
             {myDayStatus === "available" ? "Free" : myDayStatus === "maybe" ? "Maybe" : "Off"}
           </span>
         </button>
-        {/* Day-level status label for current user — always rendered for alignment */}
+        {/* Day-level status label + note icon */}
         {(() => {
           const label = getAvailabilityLabel(memberAvailability, date, currentUser.id, visibleHours);
           return (
             <div style={{
-              fontSize: 9, marginTop: 4,
-              color: label ? label.color : "var(--color-text-secondary)",
-              fontWeight: 500,
-              minHeight: 14,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              marginTop: 4, minHeight: 14,
             }}>
-              {label ? label.text : "Not set"}
+              <div style={{
+                fontSize: 9,
+                color: label ? label.color : "var(--color-text-secondary)",
+                fontWeight: 500,
+              }}>
+                {label ? label.text : "Not set"}
+              </div>
+              <NoteButton
+                note={dailyNote}
+                onSave={(text) => onSaveNote(date, text)}
+                onDelete={() => onDeleteNote(date)}
+              />
             </div>
           );
         })()}
+        {/* Note preview */}
+        {dailyNote && (
+          <div style={{
+            fontSize: 9, marginTop: 3,
+            color: "var(--color-text-secondary)",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            fontStyle: "italic",
+          }}
+            title={dailyNote}
+          >
+            {dailyNote}
+          </div>
+        )}
         {/* Inline note for day-level maybe */}
         {myDayStatus === "maybe" && (
           <input
@@ -726,6 +907,12 @@ export default function AvailabilityView({ currentUser }) {
       return saved ? JSON.parse(saved) : {};
     } catch { return {}; }
   });
+  const [dailyNotes, setDailyNotes] = useState(() => {
+    try {
+      const saved = localStorage.getItem("cdband-dailyNotes");
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [rangeSelect, setRangeSelect] = useState(null); // { date, startHour, action: "available"|"unavailable" }
   const [whatsappMsg, setWhatsappMsg] = useState(null);
@@ -757,6 +944,11 @@ export default function AvailabilityView({ currentUser }) {
   useEffect(() => {
     localStorage.setItem("cdband-memberAvailability", JSON.stringify(memberAvailability));
   }, [memberAvailability]);
+
+  // Persist dailyNotes to localStorage
+  useEffect(() => {
+    localStorage.setItem("cdband-dailyNotes", JSON.stringify(dailyNotes));
+  }, [dailyNotes]);
 
   // Tick every 30s to keep "Updated X ago" label fresh
   useEffect(() => {
@@ -867,6 +1059,30 @@ export default function AvailabilityView({ currentUser }) {
         },
       },
     }));
+  };
+
+  // Save a daily note for the current user
+  const handleSaveNote = (date, text) => {
+    const myId = currentUser.id;
+    setDailyNotes(prev => ({
+      ...prev,
+      [date]: { ...(prev[date] || {}), [myId]: text },
+    }));
+  };
+
+  // Delete a daily note for the current user
+  const handleDeleteNote = (date) => {
+    const myId = currentUser.id;
+    setDailyNotes(prev => {
+      const dayNotes = { ...(prev[date] || {}) };
+      delete dayNotes[myId];
+      if (Object.keys(dayNotes).length === 0) {
+        const next = { ...prev };
+        delete next[date];
+        return next;
+      }
+      return { ...prev, [date]: dayNotes };
+    });
   };
 
   // Slot-level toggle: cycle unavailable → available → maybe
@@ -1171,6 +1387,9 @@ export default function AvailabilityView({ currentUser }) {
                 headerRef={i === 0 ? dayHeaderRef : undefined}
                 rangeSelect={rangeSelect}
                 onAvailabilityClick={handleAvailabilityClick}
+                dailyNote={dailyNotes[date]?.[currentUser.id] || ""}
+                onSaveNote={handleSaveNote}
+                onDeleteNote={handleDeleteNote}
               />
             ))
           )}
