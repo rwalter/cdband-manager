@@ -707,9 +707,9 @@ export default function AvailabilityView({ currentUser }) {
     return () => clearInterval(id);
   }, []);
 
-  const loadDates = useCallback(async (newDates) => {
-    // Add only dates not already loaded
-    const toLoad = newDates.filter(d => !(d in availability));
+  const loadDates = useCallback(async (newDates, { force = false } = {}) => {
+    // Add only dates not already loaded (unless force-refreshing)
+    const toLoad = force ? newDates : newDates.filter(d => !(d in availability));
     if (toLoad.length === 0) {
       // Still add the dates to the visible list even if already cached
       setDates(prev => {
@@ -881,7 +881,7 @@ export default function AvailabilityView({ currentUser }) {
     setLastRefreshed(null);
     setSelectedSlot(null);
     const toRefetch = [...dates];
-    setTimeout(() => loadDates(toRefetch), 0);
+    loadDates(toRefetch, { force: true });
   };
 
   // Re-fetch all loaded dates when duration changes
@@ -894,10 +894,8 @@ export default function AvailabilityView({ currentUser }) {
         setAvailability({});
         setLastRefreshed(null);
         setSelectedSlot(null);
-        // loadDates will re-fetch since availability was cleared
         const toRefetch = [...dates];
-        // Small delay to let state settle
-        setTimeout(() => loadDates(toRefetch), 0);
+        loadDates(toRefetch, { force: true });
       }
     }
   }, [duration]);
