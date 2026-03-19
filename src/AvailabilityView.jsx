@@ -269,7 +269,7 @@ const StudioBadge = ({ num, label }) => {
   );
 };
 // ─── DAY COLUMN ──────────────────────────────────────────────────────────────
-function DayColumn({ date, availability, loading, memberAvailability, currentUser, onToggleDayStatus, onToggleSlot, onSlotClick, onDayReasonChange, visibleHours, allowStudioSwitch, duration }) {
+function DayColumn({ date, availability, loading, memberAvailability, currentUser, onToggleDayStatus, onToggleSlot, onSlotClick, onDayReasonChange, visibleHours, allowStudioSwitch, duration, headerRef }) {
   const [hoveredHour, setHoveredHour] = useState(null);
   const weekend = isWeekend(date);
   const isToday = date === todayStr();
@@ -317,7 +317,7 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
       transition: "opacity 0.3s",
     }}>
       {/* Day header */}
-      <div style={{
+      <div ref={headerRef} style={{
         padding: "10px 8px 8px",
         borderBottom: "0.5px solid var(--color-border-tertiary)",
         background: isToday
@@ -682,6 +682,19 @@ export default function AvailabilityView({ currentUser }) {
   const [, setTick] = useState(0); // force re-render to update timeAgo display
   const visibleHours = showExtended ? ALL_HOURS : DEFAULT_HOURS;
   const scrollRef = useRef(null);
+  const dayHeaderRef = useRef(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+
+  // Measure day header height dynamically so hour axis stays aligned
+  useEffect(() => {
+    const el = dayHeaderRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      setHeaderHeight(el.offsetHeight);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [dates.length > 0]); // re-attach when columns first appear
 
   // Persist memberAvailability to localStorage
   useEffect(() => {
@@ -969,7 +982,7 @@ export default function AvailabilityView({ currentUser }) {
         <div style={{
           width: 38, flexShrink: 0,
           borderRight: "0.5px solid var(--color-border-tertiary)",
-          paddingTop: 135, // aligns with day header height (header + avatars + toggle button)
+          paddingTop: headerHeight || 0,
         }}>
           {visibleHours.map(h => (
             <div key={h} style={{
@@ -1005,7 +1018,7 @@ export default function AvailabilityView({ currentUser }) {
               Press +1 day or +7 days to load availability
             </div>
           ) : (
-            dates.map(date => (
+            dates.map((date, i) => (
               <DayColumn
                 key={date}
                 date={date}
@@ -1020,6 +1033,7 @@ export default function AvailabilityView({ currentUser }) {
                 visibleHours={visibleHours}
                 allowStudioSwitch={allowStudioSwitch}
                 duration={duration}
+                headerRef={i === 0 ? dayHeaderRef : undefined}
               />
             ))
           )}
