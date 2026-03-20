@@ -30,8 +30,6 @@ const BAND_MEMBERS = [
 // All possible hours (8am–7pm); filtered at render time by showExtended toggle
 const ALL_HOURS = Array.from({ length: 12 }, (_, i) => i + 8);
 const DEFAULT_HOURS = ALL_HOURS.filter(h => h >= 9 && h <= 17); // 9am–5pm
-const STATUS_CYCLE = ["unavailable", "available", "maybe"]; // cycle order
-const MAYBE_COLOR = "#EF9F27"; // amber for maybe state
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 const formatDate = (d) =>
   new Date(d).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -86,7 +84,7 @@ function timeAgo(isoStr) {
 
 // ─── AVAILABILITY HELPERS ────────────────────────────────────────────────────
 // memberAvailability shape:
-// { "2026-04-05": { 1: { dayStatus: "available"|"maybe"|"unavailable", dayReason: "", slots: { 9: { status, reason } } } } }
+// { "2026-04-05": { 1: { dayStatus: "available"|"unavailable", slots: { 9: { status } } } } }
 
 function getMemberDayStatus(memberAvailability, date, memberId) {
   return memberAvailability[date]?.[memberId]?.dayStatus || "unavailable";
@@ -102,15 +100,6 @@ function getMemberSlotStatus(memberAvailability, date, memberId, hour) {
   return entry.dayStatus || "unavailable";
 }
 
-function getMemberSlotReason(memberAvailability, date, memberId, hour) {
-  const entry = memberAvailability[date]?.[memberId];
-  if (!entry) return "";
-  const slotEntry = entry.slots?.[hour];
-  if (slotEntry?.reason) return slotEntry.reason;
-  if (entry.dayReason) return entry.dayReason;
-  return "";
-}
-
 function getAvailabilityLabel(memberAvailability, date, memberId, visibleHours) {
   const entry = memberAvailability[date]?.[memberId];
   if (!entry) return null;
@@ -118,21 +107,18 @@ function getAvailabilityLabel(memberAvailability, date, memberId, visibleHours) 
   const slots = entry.slots || {};
   const slotKeys = Object.keys(slots);
 
-  // If dayStatus is "available" or "maybe" with no slot overrides, use simple labels
+  // If dayStatus is "available" with no slot overrides, use simple label
   if (dayStatus === "available" && slotKeys.length === 0) return { text: "Free today", color: "#1D9E75" };
-  if (dayStatus === "maybe" && slotKeys.length === 0) return { text: "Maybe", color: MAYBE_COLOR };
 
-  // Compute which visible hours are available or maybe
+  // Compute which visible hours are available
   const freeHours = [];
-  const maybeHours = [];
   for (const h of visibleHours) {
     const slotEntry = slots[h];
     const status = slotEntry ? slotEntry.status : dayStatus;
     if (status === "available") freeHours.push(h);
-    else if (status === "maybe") maybeHours.push(h);
   }
 
-  if (freeHours.length === 0 && maybeHours.length === 0) return null;
+  if (freeHours.length === 0) return null;
 
   // If dayStatus is "available" and all visible hours are free
   if (dayStatus === "available" && freeHours.length === visibleHours.length) {
@@ -156,20 +142,13 @@ function getAvailabilityLabel(memberAvailability, date, memberId, visibleHours) 
     return ranges.join(", ");
   };
 
-  if (freeHours.length > 0) return { text: `Free ${formatRanges(freeHours)}`, color: "#1D9E75" };
-  if (maybeHours.length > 0) return { text: `Maybe ${formatRanges(maybeHours)}`, color: MAYBE_COLOR };
-  return null;
+  return { text: `Free ${formatRanges(freeHours)}`, color: "#1D9E75" };
 }
 
 function isMemberFree(memberAvailability, date, memberId, hour) {
-  const status = getMemberSlotStatus(memberAvailability, date, memberId, hour);
-  return status === "available" || status === "maybe";
+  return getMemberSlotStatus(memberAvailability, date, memberId, hour) === "available";
 }
 
-function nextStatus(current) {
-  const idx = STATUS_CYCLE.indexOf(current);
-  return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
-}
 
 // ─── API ─────────────────────────────────────────────────────────────────────
 async function fetchPirateAvailability(date, duration) {
@@ -231,24 +210,15 @@ async function fetchPirateAvailability(date, duration) {
 }
 // ─── SUB-COMPONENTS ──────────────────────────────────────────────────────────
 const Avatar = ({ member, size = 24, faded = false, status }) => {
-  // status can be "available", "maybe", or undefined/null (uses faded prop)
-  const isMaybe = status === "maybe";
-  const isAvailable = status === "available";
   const effectiveFaded = faded || (status && status === "unavailable");
   return (
     <div style={{
       width: size, height: size, borderRadius: "50%", flexShrink: 0,
-      background: effectiveFaded ? "var(--color-background-secondary)"
-        : isMaybe ? MAYBE_COLOR + "22"
-        : member.color + "22",
-      border: isMaybe
-        ? `1.5px dashed ${MAYBE_COLOR}88`
-        : `1.5px solid ${effectiveFaded ? "var(--color-border-tertiary)" : member.color + "66"}`,
+      background: effectiveFaded ? "var(--color-background-secondary)" : member.color + "22",
+      border: `1.5px solid ${effectiveFaded ? "var(--color-border-tertiary)" : member.color + "66"}`,
       display: "flex", alignItems: "center", justifyContent: "center",
       fontSize: size * 0.33, fontWeight: 500,
-      color: effectiveFaded ? "var(--color-text-secondary)"
-        : isMaybe ? MAYBE_COLOR
-        : member.color,
+      color: effectiveFaded ? "var(--color-text-secondary)" : member.color,
       transition: "all 0.2s",
     }}>{member.initials}</div>
   );
@@ -437,7 +407,7 @@ function NoteButton({ myNote, noteCount, onSave, onDelete }) {
 }
 
 // ─── DAY COLUMN ──────────────────────────────────────────────────────────────
-function DayColumn({ date, availability, loading, memberAvailability, currentUser, onToggleDayStatus, onToggleSlot, onSlotClick, onDayReasonChange, visibleHours, allowStudioSwitch, duration, headerRef, rangeSelect, onAvailabilityPointerDown, onDragMove, dailyNotes, onSaveNote, onDeleteNote }) {
+function DayColumn({ date, availability, loading, memberAvailability, currentUser, onToggleDayStatus, onToggleSlot, onSlotClick, visibleHours, allowStudioSwitch, duration, headerRef, rangeSelect, onAvailabilityPointerDown, onDragMove, dailyNotes, onSaveNote, onDeleteNote }) {
   const [hoveredHour, setHoveredHour] = useState(null);
   const weekend = isWeekend(date);
   const isToday = date === todayStr();
@@ -563,10 +533,8 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
             marginTop: 5, padding: "4px 8px 4px 4px",
             minHeight: 32,
             background: myDayStatus === "available" ? currentUser.color + "14"
-              : myDayStatus === "maybe" ? MAYBE_COLOR + "14"
               : "var(--color-background-secondary)",
             border: myDayStatus === "available" ? `1px solid ${currentUser.color}44`
-              : myDayStatus === "maybe" ? `1px dashed ${MAYBE_COLOR}44`
               : "1px solid var(--color-border-tertiary)",
             borderRadius: 6, cursor: "pointer",
             WebkitTapHighlightColor: "transparent",
@@ -576,11 +544,9 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
           <Avatar member={currentUser} size={18} status={myDayStatus} />
           <span style={{
             fontSize: 9, fontWeight: 500,
-            color: myDayStatus === "available" ? currentUser.color
-              : myDayStatus === "maybe" ? MAYBE_COLOR
-              : "var(--color-text-secondary)",
+            color: myDayStatus === "available" ? currentUser.color : "var(--color-text-secondary)",
           }}>
-            {myDayStatus === "available" ? "Free" : myDayStatus === "maybe" ? "Maybe" : "Off"}
+            {myDayStatus === "available" ? "Free" : "Off"}
           </span>
         </button>
         {/* Day-level status label + note icon */}
@@ -650,24 +616,6 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
             </>
           );
         })()}
-        {/* Inline note for day-level maybe */}
-        {myDayStatus === "maybe" && (
-          <input
-            type="text"
-            value={memberAvailability[date]?.[currentUser.id]?.dayReason || ""}
-            onChange={e => onDayReasonChange(date, e.target.value)}
-            placeholder="Note (optional)"
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: "100%", marginTop: 4, padding: "3px 5px",
-              fontSize: 9, borderRadius: 4, boxSizing: "border-box",
-              border: `1px solid ${MAYBE_COLOR}44`,
-              background: MAYBE_COLOR + "0A",
-              color: "var(--color-text-primary)",
-              outline: "none",
-            }}
-          />
-        )}
       </div>
       {/* Hour slots */}
       <div>
@@ -724,20 +672,14 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
                 <div style={{
                   width: 16, height: 16, borderRadius: "50%",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  background: mySlotStatus === "available" ? currentUser.color + "22"
-                    : mySlotStatus === "maybe" ? MAYBE_COLOR + "22"
-                    : "transparent",
+                  background: mySlotStatus === "available" ? currentUser.color + "22" : "transparent",
                   border: mySlotStatus === "available" ? `1.5px solid ${currentUser.color}`
-                    : mySlotStatus === "maybe" ? `1.5px dashed ${MAYBE_COLOR}`
                     : "1.5px solid var(--color-border-tertiary)",
                   transition: "all 0.15s",
                   pointerEvents: "none",
                 }}>
                   {mySlotStatus === "available" && (
                     <span style={{ width: 6, height: 6, borderRadius: "50%", background: currentUser.color }} />
-                  )}
-                  {mySlotStatus === "maybe" && (
-                    <span style={{ fontSize: 9, color: MAYBE_COLOR, fontWeight: 700 }}>?</span>
                   )}
                 </div>
               </button>
@@ -871,21 +813,13 @@ function SlotDetail({ detail, memberAvailability, onClose, onWhatsApp, duration 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", flexDirection: "column" }}>
             {BAND_MEMBERS.map(m => {
               const status = getMemberSlotStatus(memberAvailability, date, m.id, hour);
-              const reason = getMemberSlotReason(memberAvailability, date, m.id, hour);
               return (
                 <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
                   <Avatar member={m} size={24} status={status} />
-                  <div>
-                    <span style={{
-                      color: status === "unavailable" ? "var(--color-text-secondary)" : "var(--color-text-primary)",
-                      textDecoration: status === "unavailable" ? "line-through" : "none",
-                    }}>{m.name}</span>
-                    {status === "maybe" && (
-                      <span style={{ fontSize: 11, color: MAYBE_COLOR, marginLeft: 6 }}>
-                        maybe{reason ? ` — ${reason}` : ""}
-                      </span>
-                    )}
-                  </div>
+                  <span style={{
+                    color: status === "unavailable" ? "var(--color-text-secondary)" : "var(--color-text-primary)",
+                    textDecoration: status === "unavailable" ? "line-through" : "none",
+                  }}>{m.name}</span>
                 </div>
               );
             })}
@@ -1123,11 +1057,11 @@ export default function AvailabilityView({ currentUser }) {
     }, 100);
   };
 
-  // Day-level toggle: cycle unavailable → available → maybe
+  // Day-level toggle: unavailable ↔ available
   const handleToggleDayStatus = (date) => {
     const myId = currentUser.id;
     const current = getMemberDayStatus(memberAvailability, date, myId);
-    const next = nextStatus(current);
+    const next = current === "available" ? "unavailable" : "available";
     setMemberAvailability(prev => ({
       ...prev,
       [date]: {
@@ -1135,23 +1069,7 @@ export default function AvailabilityView({ currentUser }) {
         [myId]: {
           ...(prev[date]?.[myId] || {}),
           dayStatus: next,
-          dayReason: next === "maybe" ? (prev[date]?.[myId]?.dayReason || "") : "",
           slots: next === "unavailable" ? {} : (prev[date]?.[myId]?.slots || {}),
-        },
-      },
-    }));
-  };
-
-  // Update day-level note for maybe status
-  const handleDayReasonChange = (date, reason) => {
-    const myId = currentUser.id;
-    setMemberAvailability(prev => ({
-      ...prev,
-      [date]: {
-        ...(prev[date] || {}),
-        [myId]: {
-          ...(prev[date]?.[myId] || {}),
-          dayReason: reason,
         },
       },
     }));
@@ -1181,65 +1099,32 @@ export default function AvailabilityView({ currentUser }) {
     });
   };
 
-  // Slot-level toggle: cycle unavailable → available → maybe
+  // Slot-level toggle: unavailable ↔ available
   const handleToggleSlot = (date, hour) => {
     const myId = currentUser.id;
-    const dayStatus = getMemberDayStatus(memberAvailability, date, myId);
+    setMemberAvailability(prev => {
+      const entry = prev[date]?.[myId] || {};
+      const dayStatus = entry.dayStatus || "unavailable";
+      const slots = { ...(entry.slots || {}) };
+      const slotEntry = slots[hour];
+      const currentStatus = slotEntry ? slotEntry.status : dayStatus;
+      const next = currentStatus === "available" ? "unavailable" : "available";
 
-    // If day is "unavailable", keep it that way but add a slot-level override
-    if (dayStatus === "unavailable") {
-      setMemberAvailability(prev => ({
-        ...prev,
-        [date]: {
-          ...(prev[date] || {}),
-          [myId]: {
-            ...(prev[date]?.[myId] || {}),
-            dayStatus: "unavailable",
-            slots: {
-              ...(prev[date]?.[myId]?.slots || {}),
-              [hour]: { status: "available" },
-            },
-          },
-        },
-      }));
-      return;
-    }
-
-    const currentSlotStatus = getMemberSlotStatus(memberAvailability, date, myId, hour);
-    const next = nextStatus(currentSlotStatus);
-
-    if (next === "unavailable") {
-      // Remove the slot entry (revert to day-level default)
-      setMemberAvailability(prev => {
-        const slots = { ...(prev[date]?.[myId]?.slots || {}) };
+      // If the new status matches the day-level default, remove the override
+      if (next === dayStatus) {
         delete slots[hour];
-        return {
-          ...prev,
-          [date]: {
-            ...(prev[date] || {}),
-            [myId]: {
-              ...(prev[date]?.[myId] || {}),
-              slots,
-            },
-          },
-        };
-      });
-    } else {
-      // "available" or "maybe"
-      setMemberAvailability(prev => ({
+      } else {
+        slots[hour] = { status: next };
+      }
+
+      return {
         ...prev,
         [date]: {
           ...(prev[date] || {}),
-          [myId]: {
-            ...(prev[date]?.[myId] || {}),
-            slots: {
-              ...(prev[date]?.[myId]?.slots || {}),
-              [hour]: { status: next },
-            },
-          },
+          [myId]: { ...entry, dayStatus, slots },
         },
-      }));
-    }
+      };
+    });
   };
   handleToggleSlotRef.current = handleToggleSlot;
 
@@ -1442,7 +1327,7 @@ export default function AvailabilityView({ currentUser }) {
                 onToggleDayStatus={handleToggleDayStatus}
                 onToggleSlot={handleToggleSlot}
                 onSlotClick={setSelectedSlot}
-                onDayReasonChange={handleDayReasonChange}
+
                 visibleHours={visibleHours}
                 allowStudioSwitch={allowStudioSwitch}
                 duration={duration}
