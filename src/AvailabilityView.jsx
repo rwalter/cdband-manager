@@ -437,7 +437,7 @@ function NoteButton({ myNote, noteCount, onSave, onDelete }) {
 }
 
 // ─── DAY COLUMN ──────────────────────────────────────────────────────────────
-function DayColumn({ date, availability, loading, memberAvailability, currentUser, onToggleDayStatus, onToggleSlot, onSlotClick, onDayReasonChange, visibleHours, allowStudioSwitch, duration, headerRef, rangeSelect, onAvailabilityClick, dailyNotes, onSaveNote, onDeleteNote }) {
+function DayColumn({ date, availability, loading, memberAvailability, currentUser, onToggleDayStatus, onToggleSlot, onSlotClick, onDayReasonChange, visibleHours, allowStudioSwitch, duration, headerRef, rangeSelect, onAvailabilityPointerDown, onDragMove, dailyNotes, onSaveNote, onDeleteNote }) {
   const [hoveredHour, setHoveredHour] = useState(null);
   const weekend = isWeekend(date);
   const isToday = date === todayStr();
@@ -687,7 +687,7 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
           return (
             <div
               key={hour}
-              onPointerEnter={(e) => { if (e.pointerType === "mouse" && (isRangeActiveHere || slot)) setHoveredHour(hour); }}
+              onPointerEnter={(e) => { if (e.pointerType === "mouse") { if (isRangeActiveHere || slot) setHoveredHour(hour); onDragMove?.(date, hour); } }}
               onPointerLeave={() => setHoveredHour(null)}
               style={{
                 height: 44,
@@ -701,13 +701,12 @@ function DayColumn({ date, availability, loading, memberAvailability, currentUse
             >
               {/* My availability zone — separate clickable area */}
               <button
-                onClick={(e) => {
+                onPointerDown={(e) => {
                   e.stopPropagation();
-                  onAvailabilityClick(date, hour);
+                  e.preventDefault();
+                  onAvailabilityPointerDown(date, hour);
                 }}
-                title={isRangeActiveHere
-                  ? `Click to ${rangeSelect.action === "available" ? "mark" : "clear"} availability ${rangeSelect.startHour}:00–${hour >= rangeSelect.startHour ? hour + 1 : rangeSelect.startHour + 1}:00`
-                  : `Your status: ${mySlotStatus} — click to start range selection`}
+                title={`Your status: ${mySlotStatus} — click to toggle, drag to select range`}
                 style={{
                   width: 40, flexShrink: 0,
                   cursor: "pointer",
@@ -966,6 +965,10 @@ export default function AvailabilityView({ currentUser }) {
   const visibleHours = showExtended ? ALL_HOURS : DEFAULT_HOURS;
   const scrollRef = useRef(null);
   const dayHeaderRef = useRef(null);
+  const dragEndRef = useRef(null);
+  const rangeSelectRef = useRef(null);
+  const handleToggleSlotRef = useRef(null);
+  const [dragMoved, setDragMoved] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
 
   // Measure day header height dynamically so hour axis stays aligned
@@ -998,11 +1001,65 @@ export default function AvailabilityView({ currentUser }) {
   // Cancel range selection on Escape
   useEffect(() => {
     const handler = (e) => {
-      if (e.key === "Escape") setRangeSelect(null);
+      if (e.key === "Escape") {
+        setRangeSelect(null);
+        rangeSelectRef.current = null;
+        dragEndRef.current = null;
+        setDragMoved(false);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+
+  // Complete drag selection on pointerup
+  useEffect(() => {
+    const handler = () => {
+      const rs = rangeSelectRef.current;
+      if (!rs) return;
+
+      const end = dragEndRef.current;
+      const { startHour, date, action } = rs;
+
+      if (!end || end.date !== date || end.hour === startHour) {
+        // Single click (no drag) — cycle the slot status
+        handleToggleSlotRef.current?.(date, startHour);
+      } else {
+        // Drag — apply range action
+        const rangeStart = Math.min(startHour, end.hour);
+        const rangeEnd = Math.max(startHour, end.hour);
+        const myId = currentUser.id;
+
+        setMemberAvailability(prev => {
+          const entry = prev[date]?.[myId] || {};
+          const dayStatus = entry.dayStatus || "unavailable";
+          const slots = { ...(entry.slots || {}) };
+
+          for (let h = rangeStart; h <= rangeEnd; h++) {
+            if (action === "available") {
+              if (dayStatus === "available") delete slots[h];
+              else slots[h] = { status: "available" };
+            } else {
+              if (dayStatus === "unavailable") delete slots[h];
+              else slots[h] = { status: "unavailable" };
+            }
+          }
+
+          return {
+            ...prev,
+            [date]: { ...(prev[date] || {}), [myId]: { ...entry, dayStatus, slots } },
+          };
+        });
+      }
+
+      setRangeSelect(null);
+      rangeSelectRef.current = null;
+      dragEndRef.current = null;
+      setDragMoved(false);
+    };
+    window.addEventListener("pointerup", handler);
+    return () => window.removeEventListener("pointerup", handler);
+  }, [currentUser.id]);
 
   const loadDates = useCallback(async (newDates, { force = false } = {}) => {
     // Add only dates not already loaded (unless force-refreshing)
@@ -1184,52 +1241,24 @@ export default function AvailabilityView({ currentUser }) {
       }));
     }
   };
+  handleToggleSlotRef.current = handleToggleSlot;
 
-  // Range-based availability selection: first click starts, second click completes
-  const handleAvailabilityClick = (date, hour) => {
-    if (rangeSelect && rangeSelect.date === date) {
-      // Complete the range
-      const start = Math.min(rangeSelect.startHour, hour);
-      const end = Math.max(rangeSelect.startHour, hour);
-      const action = rangeSelect.action;
-      const myId = currentUser.id;
+  // Drag-based availability selection: pointerdown starts, pointerup completes
+  const handleAvailabilityPointerDown = (date, hour) => {
+    const mySlotStatus = getMemberSlotStatus(memberAvailability, date, currentUser.id, hour);
+    const action = mySlotStatus === "available" ? "unavailable" : "available";
+    const val = { date, startHour: hour, action };
+    rangeSelectRef.current = val;
+    dragEndRef.current = { date, hour };
+    setDragMoved(false);
+    setRangeSelect(val);
+  };
 
-      setMemberAvailability(prev => {
-        const entry = prev[date]?.[myId] || {};
-        const dayStatus = entry.dayStatus || "unavailable";
-        const slots = { ...(entry.slots || {}) };
-
-        for (let h = start; h <= end; h++) {
-          if (action === "available") {
-            if (dayStatus === "available") {
-              delete slots[h]; // day status already covers it
-            } else {
-              slots[h] = { status: "available" };
-            }
-          } else {
-            // Marking unavailable
-            if (dayStatus === "unavailable") {
-              delete slots[h]; // day status already covers it
-            } else {
-              slots[h] = { status: "unavailable" };
-            }
-          }
-        }
-
-        return {
-          ...prev,
-          [date]: {
-            ...(prev[date] || {}),
-            [myId]: { ...entry, dayStatus, slots },
-          },
-        };
-      });
-      setRangeSelect(null);
-    } else {
-      // Start new range (cancel any existing range on a different date)
-      const mySlotStatus = getMemberSlotStatus(memberAvailability, date, currentUser.id, hour);
-      const action = mySlotStatus === "available" ? "unavailable" : "available";
-      setRangeSelect({ date, startHour: hour, action });
+  const handleDragMove = (date, hour) => {
+    dragEndRef.current = { date, hour };
+    const rs = rangeSelectRef.current;
+    if (rs && (date !== rs.date || hour !== rs.startHour)) {
+      setDragMoved(true);
     }
   };
 
@@ -1343,8 +1372,8 @@ export default function AvailabilityView({ currentUser }) {
           >+7 days</button>
         </div>
       </div>
-      {/* Range selection banner — overlays content at higher z-index */}
-      {rangeSelect && (
+      {/* Range selection banner — shown only during active drag */}
+      {rangeSelect && dragMoved && (
         <div style={{
           position: "absolute", top: 0, left: 0, right: 0, zIndex: 10,
           padding: "6px 12px",
@@ -1353,17 +1382,11 @@ export default function AvailabilityView({ currentUser }) {
           fontSize: 12,
           backdropFilter: "blur(4px)",
           WebkitBackdropFilter: "blur(4px)",
+          pointerEvents: "none",
         }}>
           <span style={{ color: "#fff", fontWeight: 500 }}>
-            {rangeSelect.action === "available" ? "Marking available" : "Clearing availability"} from {rangeSelect.startHour}:00 — click end hour
+            {rangeSelect.action === "available" ? "Marking available" : "Clearing availability"} — release to apply
           </span>
-          <button
-            onClick={() => setRangeSelect(null)}
-            style={{
-              background: "rgba(255,255,255,0.2)", border: "none", cursor: "pointer",
-              color: "#fff", fontSize: 12, padding: "2px 8px", borderRadius: 4,
-            }}
-          >Cancel</button>
         </div>
       )}
       {/* Time axis label + scrollable calendar */}
@@ -1425,7 +1448,8 @@ export default function AvailabilityView({ currentUser }) {
                 duration={duration}
                 headerRef={i === 0 ? dayHeaderRef : undefined}
                 rangeSelect={rangeSelect}
-                onAvailabilityClick={handleAvailabilityClick}
+                onAvailabilityPointerDown={handleAvailabilityPointerDown}
+                onDragMove={handleDragMove}
                 dailyNotes={dailyNotes[date] || {}}
                 onSaveNote={handleSaveNote}
                 onDeleteNote={handleDeleteNote}
